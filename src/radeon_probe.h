@@ -115,25 +115,21 @@ typedef struct
 
 typedef struct
 {
-    Bool HasSecondary;
+    Bool IsUsed;
+    Bool IsActive;
+    DisplayModePtr pCurMode;
+    RADEONConnector* pPort;
+} RADEONController;
 
-    /*
-     * The next two are used to make sure CRTC2 is restored before CRTC_EXT,
-     * otherwise it could lead to blank screens.
-     */
-    Bool IsSecondaryRestored;
-    Bool RestorePrimary;
+typedef struct
+{
+    Bool HasSecondary;
 
     ScrnInfoPtr pSecondaryScrn;
     ScrnInfoPtr pPrimaryScrn;
 
-    int MonType1;
-    int MonType2;
-    xf86MonPtr MonInfo1;
-    xf86MonPtr MonInfo2;
-    Bool ReversedDAC;	  /* TVDAC used as primary dac */
-    Bool ReversedTMDS;    /* DDC_DVI is used for external TMDS */
     RADEONConnector PortInfo[2];
+    RADEONController Controller[2];
 } RADEONEntRec, *RADEONEntPtr;
 
 /* radeon_probe.c */

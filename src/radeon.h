@@ -79,6 +79,66 @@
 #include "picturestr.h"
 #endif
 
+#ifndef MAX
+#define MAX(a,b) ((a)>(b)?(a):(b))
+#endif
+#ifndef MIN
+#define MIN(a,b) ((a)>(b)?(b):(a))
+#endif
+
+/* ------- mergedfb support ------------- */
+		/* Psuedo Xinerama support */
+#define NEED_REPLIES  		/* ? */
+#define EXTENSION_PROC_ARGS void *
+#include "extnsionst.h"  	/* required */
+#include <X11/extensions/panoramiXproto.h>  	/* required */
+#define RADEON_XINERAMA_MAJOR_VERSION  1
+#define RADEON_XINERAMA_MINOR_VERSION  1
+
+
+/* Relative merge position */
+typedef enum {
+   radeonLeftOf,
+   radeonRightOf,
+   radeonAbove,
+   radeonBelow,
+   radeonClone
+} RADEONScrn2Rel;
+
+typedef struct _region {
+    int x0,x1,y0,y1;
+} region;
+
+/* ------------------------------------- */
+
+#define RADEON_DEBUG            1 /* Turn off debugging output               */
+#define RADEON_IDLE_RETRY      16 /* Fall out of idle loops after this count */
+#define RADEON_TIMEOUT    2000000 /* Fall out of wait loops after this count */
+
+/* Buffer are aligned on 4096 byte boundaries */
+#define RADEON_BUFFER_ALIGN 0x00000fff
+#define RADEON_VBIOS_SIZE 0x00010000
+#define RADEON_USE_RMX 0x80000000 /* mode flag for using RMX
+				   * Need to comfirm this is not used
+				   * for something else.
+				   */
+
+#if RADEON_DEBUG
+#define RADEONTRACE(x)						\
+do {									\
+    ErrorF("(**) %s(%d): ", RADEON_NAME, pScrn->scrnIndex);		\
+    ErrorF x;								\
+} while(0)
+#else
+#define RADEONTRACE(x) do { } while(0)
+#endif
+
+
+/* Other macros */
+#define RADEON_ARRAY_SIZE(x)  (sizeof(x)/sizeof(x[0]))
+#define RADEON_ALIGN(x,bytes) (((x) + ((bytes) - 1)) & ~((bytes) - 1))
+#define RADEONPTR(pScrn)      ((RADEONInfoPtr)(pScrn)->driverPrivate)
+
 typedef enum {
     OPTION_NOACCEL,
     OPTION_SW_CURSOR,
@@ -144,62 +204,9 @@ typedef enum {
     OPTION_REVERSE_DDC,
     OPTION_LVDS_PROBE_PLL,
     OPTION_ACCELMETHOD,
-    OPTION_CONSTANTDPI
+    OPTION_CONSTANTDPI,
+    OPTION_REVERSE_DISPLAY
 } RADEONOpts;
-
-/* ------- mergedfb support ------------- */
-		/* Psuedo Xinerama support */
-#define NEED_REPLIES  		/* ? */
-#define EXTENSION_PROC_ARGS void *
-#include "extnsionst.h"  	/* required */
-#include <X11/extensions/panoramiXproto.h>  	/* required */
-#define RADEON_XINERAMA_MAJOR_VERSION  1
-#define RADEON_XINERAMA_MINOR_VERSION  1
-
-
-/* Relative merge position */
-typedef enum {
-   radeonLeftOf,
-   radeonRightOf,
-   radeonAbove,
-   radeonBelow,
-   radeonClone
-} RADEONScrn2Rel;
-
-typedef struct _region {
-    int x0,x1,y0,y1;
-} region;
-
-/* ------------------------------------- */
-
-#define RADEON_DEBUG            1 /* Turn off debugging output               */
-#define RADEON_IDLE_RETRY      16 /* Fall out of idle loops after this count */
-#define RADEON_TIMEOUT    2000000 /* Fall out of wait loops after this count */
-
-/* Buffer are aligned on 4096 byte boundaries */
-#define RADEON_BUFFER_ALIGN 0x00000fff
-#define RADEON_VBIOS_SIZE 0x00010000
-#define RADEON_USE_RMX 0x80000000 /* mode flag for using RMX
-				   * Need to comfirm this is not used
-				   * for something else.
-				   */
-
-#if RADEON_DEBUG
-#define RADEONTRACE(x)						\
-do {									\
-    ErrorF("(**) %s(%d): ", RADEON_NAME, pScrn->scrnIndex);		\
-    ErrorF x;								\
-} while(0)
-#else
-#define RADEONTRACE(x) do { } while(0)
-#endif
-
-
-/* Other macros */
-#define RADEON_ARRAY_SIZE(x)  (sizeof(x)/sizeof(x[0]))
-#define RADEON_ALIGN(x,bytes) (((x) + ((bytes) - 1)) & ~((bytes) - 1))
-#define RADEONPTR(pScrn)      ((RADEONInfoPtr)(pScrn)->driverPrivate)
-
 
 typedef struct {
 				/* Common registers */
@@ -254,6 +261,7 @@ typedef struct {
 
     CARD32            dac2_cntl;
     CARD32            disp_output_cntl;
+    CARD32            disp_tv_out_cntl;
     CARD32            disp_hw_debug;
     CARD32            disp2_merge_cntl;
     CARD32            grph2_buffer_cntl;
@@ -267,14 +275,16 @@ typedef struct {
 				/* Flat panel registers */
     CARD32            fp_crtc_h_total_disp;
     CARD32            fp_crtc_v_total_disp;
+    CARD32            fp_crtc2_h_total_disp;
+    CARD32            fp_crtc2_v_total_disp;
     CARD32            fp_gen_cntl;
     CARD32            fp2_gen_cntl;
     CARD32            fp_h_sync_strt_wid;
-    CARD32            fp2_h_sync_strt_wid;
+    CARD32            fp_h2_sync_strt_wid;
     CARD32            fp_horz_stretch;
     CARD32            fp_panel_cntl;
     CARD32            fp_v_sync_strt_wid;
-    CARD32            fp2_v_sync_strt_wid;
+    CARD32            fp_v2_sync_strt_wid;
     CARD32            fp_vert_stretch;
     CARD32            lvds_gen_cntl;
     CARD32            lvds_pll_cntl;
@@ -291,6 +301,7 @@ typedef struct {
     unsigned          ppll_ref_div;
     unsigned          ppll_div_3;
     CARD32            htotal_cntl;
+    CARD32            vclk_cntl;
 
 				/* Computed values for PLL2 */
     CARD32            dot_clock_freq_2;
@@ -302,6 +313,7 @@ typedef struct {
     CARD32            p2pll_ref_div;
     CARD32            p2pll_div_0;
     CARD32            htotal_cntl2;
+    CARD32            pixclks_cntl;
 
 				/* Pallet */
     Bool              palette_valid;
@@ -797,6 +809,8 @@ typedef struct {
     int                MaxSurfaceWidth;
     int                MaxLines;
 
+    CARD32            tv_dac_adj;
+
 } RADEONInfoRec, *RADEONInfoPtr;
 
 #define RADEONWaitForFifo(pScrn, entries)				\
@@ -860,6 +874,19 @@ extern Bool        RADEONGetClockInfoFromBIOS (ScrnInfoPtr pScrn);
 extern Bool        RADEONGetLVDSInfoFromBIOS (ScrnInfoPtr pScrn);
 extern Bool        RADEONGetTMDSInfoFromBIOS (ScrnInfoPtr pScrn);
 extern Bool        RADEONGetHardCodedEDIDFromBIOS (ScrnInfoPtr pScrn);
+
+extern void        RADEONInitDispBandwidth(ScrnInfoPtr pScrn);
+extern Bool        RADEONI2cInit(ScrnInfoPtr pScrn);
+extern void        RADEONSetSyncRangeFromEdid(ScrnInfoPtr pScrn, int flag);
+extern Bool        RADEONMapControllers(ScrnInfoPtr pScrn);
+extern void        RADEONEnableDisplay(ScrnInfoPtr pScrn, RADEONController* pCRTC, BOOL bEnable);
+extern void        RADEONGetPanelInfo(ScrnInfoPtr pScrn);
+extern void        RADEONGetTVDacAdjInfo(ScrnInfoPtr pScrn);
+extern void        RADEONUnblank(ScrnInfoPtr pScrn);
+extern void        RADEONBlank(ScrnInfoPtr pScrn);
+extern void        RADEONDisplayPowerManagementSet(ScrnInfoPtr pScrn,
+						   int PowerManagementMode,
+						   int flags);
 
 #ifdef XF86DRI
 #ifdef USE_XAA
