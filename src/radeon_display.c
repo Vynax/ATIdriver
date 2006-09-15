@@ -1107,7 +1107,7 @@ static void RADEONQueryConnectedDisplays(ScrnInfoPtr pScrn)
 
         xf86DrvMsg(pScrn->scrnIndex, X_CONFIG, 
                    "MonitorLayout Option: \n\tMonitor1--Type %s, Monitor2--Type %s\n\n", s1, s2);
-
+#if 0
         if (pRADEONEnt->PortInfo[1].MonType == MT_CRT) {
                 pRADEONEnt->PortInfo[1].DACType = DAC_PRIMARY;
                 pRADEONEnt->PortInfo[1].TMDSType = TMDS_UNKNOWN;
@@ -1119,7 +1119,7 @@ static void RADEONQueryConnectedDisplays(ScrnInfoPtr pScrn)
                 pRADEONEnt->PortInfo[0].ConnectorType = pRADEONEnt->PortInfo[0].MonType+1;
                 pRADEONEnt->PortInfo[0].MonInfo = NULL;
         }
-
+#endif
         /* some thinkpads and powerbooks use lvds and internal tmds 
 	 * at the same time.  --AGD
 	 */
