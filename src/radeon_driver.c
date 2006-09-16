@@ -112,13 +112,6 @@
 #include "atipciids.h"
 #include "radeon_chipset.h"
 
-#ifndef MAX
-#define MAX(a,b) ((a)>(b)?(a):(b))
-#endif
-#ifndef MIN
-#define MIN(a,b) ((a)>(b)?(b):(a))
-#endif
-
 				/* Forward definitions for driver functions */
 static Bool RADEONCloseScreen(int scrnIndex, ScreenPtr pScreen);
 static Bool RADEONSaveScreen(ScreenPtr pScreen, int mode);
@@ -130,8 +123,10 @@ static void RADEONGetMergedFBOptions(ScrnInfoPtr pScrn);
 static int RADEONValidateMergeModes(ScrnInfoPtr pScrn);
 static void RADEONSetDynamicClock(ScrnInfoPtr pScrn, int mode);
 static void RADEONForceSomeClocks(ScrnInfoPtr pScrn);
-static void RADEONUpdatePanelSize(ScrnInfoPtr pScrn);
 static void RADEONSaveMemMapRegisters(ScrnInfoPtr pScrn, RADEONSavePtr save);
+xf86MonPtr RADEONProbeDDC(ScrnInfoPtr pScrn, int indx);
+static RADEONMonitorType RADEONCrtIsPhysicallyConnected(ScrnInfoPtr pScrn, int IsCrtDac);
+  
 
 #ifdef XF86DRI
 static void RADEONAdjustMemMapRegisters(ScrnInfoPtr pScrn, RADEONSavePtr save);
@@ -1110,9 +1105,12 @@ static void RADEONGetClockInfo(ScrnInfoPtr pScrn)
     if (info->ChipFamily == CHIP_FAMILY_RV100 && !info->HasCRTC2) {
         /* Avoid RN50 corruption due to memory bandwidth starvation.
          * 18 is an empirical value based on the databook and Windows driver.
-        */
+         *
+         * Empirical value changed to 24 to raise pixel clock limit and
+         * allow higher resolution modes on capable monitors.
+         */
         pll->max_pll_freq = min(pll->max_pll_freq,
-                               18 * info->mclk * 100 / pScrn->bitsPerPixel *
+                               24 * info->mclk * 100 / pScrn->bitsPerPixel *
                                info->RamWidth / 16);
     }
 
@@ -2000,7 +1998,8 @@ static void RADEONSortModes(DisplayModePtr *new, DisplayModePtr *first,
 
     p = *last;
     while (p) {
-	if ((((*new)->HDisplay < p->HDisplay) &&
+	if (((*new)->HDisplay < p->HDisplay) ||
+	    (((*new)->HDisplay == p->HDisplay) &&
 	     ((*new)->VDisplay < p->VDisplay)) ||
 	    (((*new)->HDisplay == p->HDisplay) &&
 	     ((*new)->VDisplay == p->VDisplay) &&
@@ -2707,6 +2706,9 @@ static Bool RADEONPreInitModes(ScrnInfoPtr pScrn, xf86Int10InfoPtr pInt10)
     int            modesFound;
     RADEONEntPtr pRADEONEnt = RADEONEntPriv(pScrn);
     char           *s;
+    DisplayModePtr	first = NULL;
+    DisplayModePtr 	last = NULL;
+    DisplayModePtr 	start, mp;
 
     /* This option has two purposes:
      *
@@ -2763,7 +2765,7 @@ static Bool RADEONPreInitModes(ScrnInfoPtr pScrn, xf86Int10InfoPtr pInt10)
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
 		   "No DDC data available, DDCMode option is dismissed\n");
     }
-
+#if 0
     if ((info->DisplayType == MT_DFP) ||
 	(info->DisplayType == MT_LCD)) {
 	if ((s = xf86GetOptValString(info->Options, OPTION_PANEL_SIZE))) {
@@ -2817,6 +2819,7 @@ static Bool RADEONPreInitModes(ScrnInfoPtr pScrn, xf86Int10InfoPtr pInt10)
         } else
             RADEONGetPanelInfo(pScrn);
     }
+#endif
 
     if (pScrn->monitor->DDC) {
         /* If we still don't know sync range yet, let's try EDID.
@@ -2984,6 +2987,35 @@ static Bool RADEONPreInitModes(ScrnInfoPtr pScrn, xf86Int10InfoPtr pInt10)
 			   modesFound);
 	    }
 	}
+    }
+
+    /* Sort the modes, retain the first */
+    if (pScrn->modes && (start = pScrn->modes->next)) {
+       /* Copy modelist into a new sorted modelist */
+       for (mp = start; mp != pScrn->modes; mp = mp->next) {
+           DisplayModePtr 	new = NULL;
+
+           new = xnfcalloc(1, sizeof (DisplayModeRec));
+           memcpy(new, mp, sizeof (DisplayModeRec));
+           new->name = strdup(mp->name);
+           RADEONSortModes(&new, &first, &last);
+       }
+
+       if (last && first) {
+           /* Clean up the old modelist */
+           start->prev = pScrn->modes->prev;
+           if (start->prev)
+               start->prev->next = start;
+           while (start) 
+               xf86DeleteMode(&start, start);
+
+           /* Switch to the new sorted modelist */
+           pScrn->modes->next = first;
+           pScrn->modes->prev = last;
+           first->prev = pScrn->modes;
+           last->next = pScrn->modes;
+
+       }
     }
 
     pScrn->currentMode = pScrn->modes;
@@ -3560,15 +3592,18 @@ static Bool RADEONPreInitControllers(ScrnInfoPtr pScrn, xf86Int10InfoPtr  pInt10
     return TRUE;
 }
 
-static void
+xf86MonPtr
 RADEONProbeDDC(ScrnInfoPtr pScrn, int indx)
 {
     vbeInfoPtr  pVbe;
+    xf86MonPtr monitor;
 
     if (xf86LoadSubModule(pScrn, "vbe")) {
 	pVbe = VBEInit(NULL,indx);
-	ConfiguredMonitor = vbeDoEDID(pVbe, NULL);
-    }
+	monitor = vbeDoEDID(pVbe, NULL);
+	return (monitor);
+    } else
+	return (NULL);
 }
 
 _X_EXPORT Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
@@ -3588,7 +3623,7 @@ _X_EXPORT Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 
     info               = RADEONPTR(pScrn);
     info->IsSecondary  = FALSE;
-    info->IsPrimary    = FALSE;
+    info->IsPrimary     = FALSE;
     info->MergedFB     = FALSE;
     info->IsSwitching  = FALSE;
     info->MMIO         = NULL;
@@ -3659,7 +3694,7 @@ _X_EXPORT Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
     }
 
     if (flags & PROBE_DETECT) {
-	RADEONProbeDDC(pScrn, info->pEnt->index);
+	ConfiguredMonitor = RADEONProbeDDC(pScrn, info->pEnt->index);
 	RADEONPostInt10Check(pScrn, int10_save);
 	if(info->MMIO) RADEONUnmapMMIO(pScrn);
 	return TRUE;
@@ -3960,7 +3995,6 @@ static void RADEONLoadPalette(ScrnInfoPtr pScrn, int numColors,
     int            i;
     int            idx, j;
     unsigned char  r, g, b;
-    CARD32 tmp = 0;
 
 #ifdef XF86DRI
     if (info->CPStarted && pScrn->pScreen) DRILock(pScrn->pScreen, 0);
@@ -3968,13 +4002,6 @@ static void RADEONLoadPalette(ScrnInfoPtr pScrn, int numColors,
 
     if (info->accelOn && pScrn->pScreen)
         RADEON_SYNC(info, pScrn);
-
-    if (info->HasCRTC2) {
-	tmp = INPLL (pScrn, RADEON_PIXCLKS_CNTL);
-	OUTPLLP (pScrn, RADEON_PIXCLKS_CNTL, 
-		 RADEON_PIX2CLK_SRC_SEL_CPUCLK,
-		 ~(RADEON_PIX2CLK_SRC_SEL_MASK));
-    }
 
     if (info->FBDev) {
 	fbdevHWLoadPalette(pScrn, numColors, indices, colors, pVisual);
@@ -4084,46 +4111,10 @@ static void RADEONLoadPalette(ScrnInfoPtr pScrn, int numColors,
 	}
     }
 
-    if (info->HasCRTC2)
-	OUTPLL(pScrn, RADEON_PIXCLKS_CNTL, tmp);
-
 #ifdef XF86DRI
     if (info->CPStarted && pScrn->pScreen) DRIUnlock(pScrn->pScreen);
 #endif
 }
-
-#if 1
-/* Write palette data */
-static void RADEONRestorePalette(ScrnInfoPtr pScrn, RADEONSavePtr restore)
-{
-    RADEONInfoPtr  info       = RADEONPTR(pScrn);
-    unsigned char *RADEONMMIO = info->MMIO;
-    int            i;
-    CARD32 tmp = 0;
-
-    if (info->HasCRTC2) {
-	tmp = INPLL (pScrn, RADEON_PIXCLKS_CNTL);
-	OUTPLLP (pScrn, RADEON_PIXCLKS_CNTL, 
-		 RADEON_PIX2CLK_SRC_SEL_CPUCLK,
-		 ~(RADEON_PIX2CLK_SRC_SEL_MASK));
-
-	PAL_SELECT(1);
-	OUTPAL_START(0);
-	for (i = 0; i < 256; i++) {
-	    OUTPAL_NEXT_CARD32(restore->palette2[i]);
-	}
-    }
-
-    PAL_SELECT(0);
-    OUTPAL_START(0);
-    for (i = 0; i < 256; i++) {
-	OUTPAL_NEXT_CARD32(restore->palette[i]);
-    }
-
-    if (info->HasCRTC2)
-	OUTREG(RADEON_PIXCLKS_CNTL, tmp);
-}
-#endif
 
 static void RADEONBlockHandler(int i, pointer blockData,
 			       pointer pTimeout, pointer pReadmask)
@@ -5324,6 +5315,7 @@ static void RADEONRestoreCrtc2Registers(ScrnInfoPtr pScrn,
 
     OUTREG(RADEON_DAC_CNTL2, restore->dac2_cntl);
 
+    /*OUTREG(RADEON_TV_DAC_CNTL, 0x00280203);*/
     if ((info->ChipFamily != CHIP_FAMILY_RADEON) &&
 	(info->ChipFamily != CHIP_FAMILY_R200)) 
 	OUTREG (RADEON_TV_DAC_CNTL, restore->tv_dac_cntl);
@@ -5529,7 +5521,6 @@ static void RADEONRestorePLLRegisters(ScrnInfoPtr pScrn,
     OUTPLLP(pScrn, RADEON_VCLK_ECP_CNTL,
 	    RADEON_VCLK_SRC_SEL_PPLLCLK,
 	    ~(RADEON_VCLK_SRC_SEL_MASK));
-
 }
 
 
@@ -5590,7 +5581,6 @@ static void RADEONRestorePLL2Registers(ScrnInfoPtr pScrn,
     OUTPLLP(pScrn, RADEON_PIXCLKS_CNTL,
 	    RADEON_PIX2CLK_SRC_SEL_P2PLLCLK,
 	    ~(RADEON_PIX2CLK_SRC_SEL_MASK));
-
 }
 
 
@@ -5777,6 +5767,32 @@ void RADEONChangeSurfaces(ScrnInfoPtr pScrn)
     RADEONSaveSurfaces(pScrn, &info->ModeReg);
 }
 
+#if 0
+/* Write palette data */
+static void RADEONRestorePalette(ScrnInfoPtr pScrn, RADEONSavePtr restore)
+{
+    RADEONInfoPtr  info       = RADEONPTR(pScrn);
+    unsigned char *RADEONMMIO = info->MMIO;
+    int            i;
+
+    if (!restore->palette_valid) return;
+
+    PAL_SELECT(1);
+    OUTPAL_START(0);
+    for (i = 0; i < 256; i++) {
+	RADEONWaitForFifo(pScrn, 32); /* delay */
+	OUTPAL_NEXT_CARD32(restore->palette2[i]);
+    }
+
+    PAL_SELECT(0);
+    OUTPAL_START(0);
+    for (i = 0; i < 256; i++) {
+	RADEONWaitForFifo(pScrn, 32); /* delay */
+	OUTPAL_NEXT_CARD32(restore->palette[i]);
+    }
+}
+#endif
+
 /* Write out state to define a new video mode */
 static void RADEONRestoreMode(ScrnInfoPtr pScrn, RADEONSavePtr restore)
 {
@@ -5786,6 +5802,16 @@ static void RADEONRestoreMode(ScrnInfoPtr pScrn, RADEONSavePtr restore)
     RADEONController* pCRTC2 = &pRADEONEnt->Controller[1];
 
     RADEONTRACE(("RADEONRestoreMode(%p)\n", restore));
+
+    /* For Non-dual head card, we don't have private field in the Entity */
+    if (!info->HasCRTC2) {
+	RADEONRestoreMemMapRegisters(pScrn, restore);
+	RADEONRestoreCommonRegisters(pScrn, restore);
+	RADEONRestoreCrtcRegisters(pScrn, restore);
+	RADEONRestoreFPRegisters(pScrn, restore);
+	RADEONRestorePLLRegisters(pScrn, restore);
+	return;
+    }
 
     /* When changing mode with Dual-head card, care must be taken for
      * the special order in setting registers. CRTC2 has to be set
@@ -5911,7 +5937,6 @@ static void RADEONSaveCrtcRegisters(ScrnInfoPtr pScrn, RADEONSavePtr save)
     save->crtc_gen_cntl        = INREG(RADEON_CRTC_GEN_CNTL);
     save->crtc_ext_cntl        = INREG(RADEON_CRTC_EXT_CNTL);
     save->dac_cntl             = INREG(RADEON_DAC_CNTL);
-    save->tv_dac_cntl          = INREG(RADEON_TV_DAC_CNTL);
     save->crtc_h_total_disp    = INREG(RADEON_CRTC_H_TOTAL_DISP);
     save->crtc_h_sync_strt_wid = INREG(RADEON_CRTC_H_SYNC_STRT_WID);
     save->crtc_v_total_disp    = INREG(RADEON_CRTC_V_TOTAL_DISP);
@@ -5967,6 +5992,7 @@ static void RADEONSaveCrtc2Registers(ScrnInfoPtr pScrn, RADEONSavePtr save)
     unsigned char *RADEONMMIO = info->MMIO;
 
     save->dac2_cntl             = INREG(RADEON_DAC_CNTL2);
+    save->tv_dac_cntl           = INREG(RADEON_TV_DAC_CNTL);
     save->disp_output_cntl      = INREG(RADEON_DISP_OUTPUT_CNTL);
     save->disp_tv_out_cntl      = INREG(RADEON_DISP_TV_OUT_CNTL);
     save->disp_hw_debug         = INREG (RADEON_DISP_HW_DEBUG);
@@ -6030,26 +6056,17 @@ static void RADEONSavePalette(ScrnInfoPtr pScrn, RADEONSavePtr save)
     RADEONInfoPtr  info       = RADEONPTR(pScrn);
     unsigned char *RADEONMMIO = info->MMIO;
     int            i;
-    CARD32 tmp = 0;
 
-    if (info->HasCRTC2) {
-	tmp = INPLL (pScrn, RADEON_PIXCLKS_CNTL);
-	OUTPLLP (pScrn, RADEON_PIXCLKS_CNTL, 
-		 RADEON_PIX2CLK_SRC_SEL_CPUCLK,
-		 ~(RADEON_PIX2CLK_SRC_SEL_MASK));
-
-	PAL_SELECT(1);
-	INPAL_START(0);
-	for (i = 0; i < 256; i++) save->palette2[i] = INPAL_NEXT();
-    }
-
+#ifdef ENABLE_FLAT_PANEL
+    /* Select palette 0 (main CRTC) if using FP-enabled chip */
+ /* if (info->Port1 == MT_DFP) PAL_SELECT(1); */
+#endif
+    PAL_SELECT(1);
+    INPAL_START(0);
+    for (i = 0; i < 256; i++) save->palette2[i] = INPAL_NEXT();
     PAL_SELECT(0);
     INPAL_START(0);
     for (i = 0; i < 256; i++) save->palette[i] = INPAL_NEXT();
-
-    if (info->HasCRTC2)
-	OUTPLL(pScrn, RADEON_PIXCLKS_CNTL, tmp);
-
     save->palette_valid = TRUE;
 }
 
@@ -6239,7 +6256,8 @@ static void RADEONInitCommonRegisters(RADEONSavePtr save, RADEONInfoPtr info)
 static void RADEONInitTvDacCntl(ScrnInfoPtr pScrn, RADEONSavePtr save)
 {
     RADEONInfoPtr  info       = RADEONPTR(pScrn);
-    if (info->ChipFamily == CHIP_FAMILY_R420) {
+    if (info->ChipFamily == CHIP_FAMILY_R420 ||
+	info->ChipFamily == CHIP_FAMILY_RV410) {
 	save->tv_dac_cntl &= ~(RADEON_TV_DAC_STD_MASK |
 			       RADEON_TV_DAC_BGADJ_MASK |
 			       R420_TV_DAC_DACADJ_MASK |
@@ -6259,7 +6277,7 @@ static void RADEONInitTvDacCntl(ScrnInfoPtr pScrn, RADEONSavePtr save)
 			 RADEON_TV_DAC_NHOLD |
 			 RADEON_TV_DAC_STD_PS2 |
 			 info->tv_dac_adj);
-}
+}   
 
 static void RADEONInitFPRegisters(ScrnInfoPtr pScrn, RADEONSavePtr save,
 				  DisplayModePtr mode, BOOL IsPrimary)
@@ -6564,10 +6582,6 @@ Bool RADEONInitCrtcRegisters(ScrnInfoPtr pScrn, RADEONSavePtr save,
     save->crtc_pitch  = ((pScrn->displayWidth * pScrn->bitsPerPixel) +
 			 ((pScrn->bitsPerPixel * 8) -1)) / (pScrn->bitsPerPixel * 8);
     save->crtc_pitch |= save->crtc_pitch << 16;
-    
-    save->vclk_cntl = (info->SavedReg.vclk_cntl &
-	    ~RADEON_VCLK_SRC_SEL_MASK) | RADEON_VCLK_SRC_SEL_PPLLCLK;
-
 
     /* Set following registers for all cases first, if a DFP/LCD is connected on
        internal TMDS/LVDS port, they will be set by RADEONInitFPRegister
@@ -6862,13 +6876,7 @@ Bool RADEONInitCrtc2Registers(ScrnInfoPtr pScrn, RADEONSavePtr save,
 	    else
 		save->fp2_gen_cntl &= ~RADEON_FP2_PANEL_FORMAT;/* 18 bit format, */
         }
-    } 
-
-
-    save->pixclks_cntl = ((info->SavedReg.pixclks_cntl &
-			   ~(RADEON_PIX2CLK_SRC_SEL_MASK)) |
-			  RADEON_PIX2CLK_SRC_SEL_P2PLLCLK);
-
+    }
 
     /* We must set SURFACE_CNTL properly on the second screen too */
     save->surface_cntl = 0;
@@ -6956,6 +6964,10 @@ static void RADEONInitPLLRegisters(ScrnInfoPtr pScrn, RADEONInfoPtr info,
     save->ppll_ref_div   = pll->reference_div;
     save->ppll_div_3     = (save->feedback_div | (post_div->bitvalue << 16));
     save->htotal_cntl    = 0;
+
+    save->vclk_cntl = (info->SavedReg.vclk_cntl &
+	    ~RADEON_VCLK_SRC_SEL_MASK) | RADEON_VCLK_SRC_SEL_PPLLCLK;
+
 }
 
 /* Define PLL2 registers for requested video mode */
@@ -6963,6 +6975,7 @@ static void RADEONInitPLL2Registers(ScrnInfoPtr pScrn, RADEONSavePtr save,
 				    RADEONPLLPtr pll, double dot_clock,
 				    int no_odd_postdiv)
 {
+    RADEONInfoPtr  info      = RADEONPTR(pScrn);
     unsigned long  freq = dot_clock * 100;
 
     struct {
@@ -7019,6 +7032,11 @@ static void RADEONInitPLL2Registers(ScrnInfoPtr pScrn, RADEONSavePtr save,
     save->p2pll_div_0      = (save->feedback_div_2 |
 			      (post_div->bitvalue << 16));
     save->htotal_cntl2     = 0;
+
+    save->pixclks_cntl = ((info->SavedReg.pixclks_cntl &
+			   ~(RADEON_PIX2CLK_SRC_SEL_MASK)) |
+			  RADEON_PIX2CLK_SRC_SEL_P2PLLCLK);
+
 }
 
 #if 0

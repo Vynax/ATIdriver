@@ -86,59 +86,6 @@
 #define MIN(a,b) ((a)>(b)?(b):(a))
 #endif
 
-/* ------- mergedfb support ------------- */
-		/* Psuedo Xinerama support */
-#define NEED_REPLIES  		/* ? */
-#define EXTENSION_PROC_ARGS void *
-#include "extnsionst.h"  	/* required */
-#include <X11/extensions/panoramiXproto.h>  	/* required */
-#define RADEON_XINERAMA_MAJOR_VERSION  1
-#define RADEON_XINERAMA_MINOR_VERSION  1
-
-
-/* Relative merge position */
-typedef enum {
-   radeonLeftOf,
-   radeonRightOf,
-   radeonAbove,
-   radeonBelow,
-   radeonClone
-} RADEONScrn2Rel;
-
-typedef struct _region {
-    int x0,x1,y0,y1;
-} region;
-
-/* ------------------------------------- */
-
-#define RADEON_DEBUG            1 /* Turn off debugging output               */
-#define RADEON_IDLE_RETRY      16 /* Fall out of idle loops after this count */
-#define RADEON_TIMEOUT    2000000 /* Fall out of wait loops after this count */
-
-/* Buffer are aligned on 4096 byte boundaries */
-#define RADEON_BUFFER_ALIGN 0x00000fff
-#define RADEON_VBIOS_SIZE 0x00010000
-#define RADEON_USE_RMX 0x80000000 /* mode flag for using RMX
-				   * Need to comfirm this is not used
-				   * for something else.
-				   */
-
-#if RADEON_DEBUG
-#define RADEONTRACE(x)						\
-do {									\
-    ErrorF("(**) %s(%d): ", RADEON_NAME, pScrn->scrnIndex);		\
-    ErrorF x;								\
-} while(0)
-#else
-#define RADEONTRACE(x) do { } while(0)
-#endif
-
-
-/* Other macros */
-#define RADEON_ARRAY_SIZE(x)  (sizeof(x)/sizeof(x[0]))
-#define RADEON_ALIGN(x,bytes) (((x) + ((bytes) - 1)) & ~((bytes) - 1))
-#define RADEONPTR(pScrn)      ((RADEONInfoPtr)(pScrn)->driverPrivate)
-
 typedef enum {
     OPTION_NOACCEL,
     OPTION_SW_CURSOR,
@@ -207,6 +154,60 @@ typedef enum {
     OPTION_CONSTANTDPI,
     OPTION_REVERSE_DISPLAY
 } RADEONOpts;
+
+/* ------- mergedfb support ------------- */
+		/* Psuedo Xinerama support */
+#define NEED_REPLIES  		/* ? */
+#define EXTENSION_PROC_ARGS void *
+#include "extnsionst.h"  	/* required */
+#include <X11/extensions/panoramiXproto.h>  	/* required */
+#define RADEON_XINERAMA_MAJOR_VERSION  1
+#define RADEON_XINERAMA_MINOR_VERSION  1
+
+
+/* Relative merge position */
+typedef enum {
+   radeonLeftOf,
+   radeonRightOf,
+   radeonAbove,
+   radeonBelow,
+   radeonClone
+} RADEONScrn2Rel;
+
+typedef struct _region {
+    int x0,x1,y0,y1;
+} region;
+
+/* ------------------------------------- */
+
+#define RADEON_DEBUG            1 /* Turn off debugging output               */
+#define RADEON_IDLE_RETRY      16 /* Fall out of idle loops after this count */
+#define RADEON_TIMEOUT    2000000 /* Fall out of wait loops after this count */
+
+/* Buffer are aligned on 4096 byte boundaries */
+#define RADEON_BUFFER_ALIGN 0x00000fff
+#define RADEON_VBIOS_SIZE 0x00010000
+#define RADEON_USE_RMX 0x80000000 /* mode flag for using RMX
+				   * Need to comfirm this is not used
+				   * for something else.
+				   */
+
+#if RADEON_DEBUG
+#define RADEONTRACE(x)						\
+do {									\
+    ErrorF("(**) %s(%d): ", RADEON_NAME, pScrn->scrnIndex);		\
+    ErrorF x;								\
+} while(0)
+#else
+#define RADEONTRACE(x) do { } while(0)
+#endif
+
+
+/* Other macros */
+#define RADEON_ARRAY_SIZE(x)  (sizeof(x)/sizeof(x[0]))
+#define RADEON_ALIGN(x,bytes) (((x) + ((bytes) - 1)) & ~((bytes) - 1))
+#define RADEONPTR(pScrn)      ((RADEONInfoPtr)(pScrn)->driverPrivate)
+
 
 typedef struct {
 				/* Common registers */
@@ -875,6 +876,7 @@ extern Bool        RADEONGetLVDSInfoFromBIOS (ScrnInfoPtr pScrn);
 extern Bool        RADEONGetTMDSInfoFromBIOS (ScrnInfoPtr pScrn);
 extern Bool        RADEONGetHardCodedEDIDFromBIOS (ScrnInfoPtr pScrn);
 
+extern xf86MonPtr  RADEONProbeDDC(ScrnInfoPtr pScrn, int indx);
 extern void        RADEONInitDispBandwidth(ScrnInfoPtr pScrn);
 extern Bool        RADEONI2cInit(ScrnInfoPtr pScrn);
 extern void        RADEONSetSyncRangeFromEdid(ScrnInfoPtr pScrn, int flag);
