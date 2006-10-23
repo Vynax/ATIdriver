@@ -204,7 +204,7 @@ static Bool R100CheckCompositeTexture(PicturePtr pPict, int unit)
 	RADEON_FALLBACK(("Unsupported picture format 0x%x\n",
 			(int)pPict->format));
 
-    if (pPict->repeat)
+    if (pPict->repeat && ((w != 1) || (h != 1)))
 	RADEON_FALLBACK(("Repeat unsupported (%dx%d)\n", w, h));
 
     if (pPict->filter != PictFilterNearest &&
@@ -459,7 +459,7 @@ static Bool R200CheckCompositeTexture(PicturePtr pPict, int unit)
 	RADEON_FALLBACK(("Unsupported picture format 0x%x\n",
 			 (int)pPict->format));
 
-    if (pPict->repeat)
+    if (pPict->repeat && ((w != 1) || (h != 1)))
 	RADEON_FALLBACK(("Repeat unsupported (%dx%d)\n", w, h));
 
     if (pPict->filter != PictFilterNearest &&
