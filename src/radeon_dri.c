@@ -53,6 +53,8 @@
 
 #include "atipciids.h"
 
+#include "radeon_drm.h"
+
 				/* X and server generic header files */
 #include "xf86.h"
 #include "xf86PciInfo.h"
@@ -1715,6 +1717,27 @@ Bool RADEONDRIScreenInit(ScreenPtr pScreen)
     }
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "[dri] Visual configs initialized\n");
 
+    {
+	int page_size = getpagesize();
+	struct drm_radeon_gem_init init_args;
+
+	int ret;
+
+	unsigned long aperStart = ((info->pciAperSize * 1024 * 1024) - (16384 * 1024)) / page_size;
+	unsigned long aperEnd = ((info->pciAperSize * 1024 * 1024)) / page_size;
+
+	init_args.gtt_start = aperStart;
+	init_args.gtt_end = aperEnd;
+	init_args.vram_start = info->FbMapSize / page_size;
+	init_args.vram_end = (pScrn->videoRam * 1024) / page_size;
+
+	ErrorF("initing %llx %llx %llx %llx\n", init_args.gtt_start,
+	       init_args.gtt_end, init_args.vram_start, init_args.vram_end);
+	ret = drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_INIT, &init_args, sizeof(init_args));
+	if (ret)
+	    ErrorF("ioctl failed %d\n", ret);
+    }
+
     return TRUE;
 }
 
@@ -2350,5 +2373,21 @@ int RADEONDRISetParam(ScrnInfoPtr pScrn, unsigned int param, int64_t value)
     radeonsetparam.value = value;
     ret = drmCommandWrite(info->dri->drmFD, DRM_RADEON_SETPARAM,
 			  &radeonsetparam, sizeof(drm_radeon_setparam_t));
+    return ret;
+}
+
+int RADEONAllocateKernelVRAM(ScrnInfoPtr pScrn, int size, int alignment, Boolean no_backing_store, uint32_t *handle)
+{
+    struct drm_radeon_gem_create args;
+
+    args.size = size;
+    args.alignment = alignment;
+    args.initial_domain = RADEON_GEM_DOMAIN_GPU;
+    args.no_backing_store = no_backing_store;
+
+
+    ret = drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_CREATE, &args, sizeof(args));
+
+    *handle = args.handle;
     return ret;
 }

@@ -1695,7 +1695,10 @@ static Bool RADEONPreInitVRAM(ScrnInfoPtr pScrn)
     }
 
     pScrn->videoRam  &= ~1023;
+
+    /* half video RAM for TTM */
     info->FbMapSize  = pScrn->videoRam * 1024;
+    info->FbMapSize /= 2;
 
     /* if the card is PCI Express reserve the last 32k for the gart table */
 #ifdef XF86DRI
@@ -2075,6 +2078,9 @@ static Bool RADEONPreInitAccel(ScrnInfoPtr pScrn)
     if (!xf86ReturnOptValBool(info->Options, OPTION_NOACCEL, FALSE)) {
 	int errmaj = 0, errmin = 0;
 
+#if defined(USE_EXA)
+	info->useEXA = TRUE;
+#endif
 	from = X_DEFAULT;
 #if defined(USE_EXA)
 #if defined(USE_XAA)
@@ -2085,6 +2091,7 @@ static Bool RADEONPreInitAccel(ScrnInfoPtr pScrn)
 		info->useEXA = TRUE;
 	    } else if (xf86NameCmp(optstr, "XAA") == 0) {
 		from = X_CONFIG;
+		info->useEXA = FALSE;
 	    }
 	}
 #else /* USE_XAA */

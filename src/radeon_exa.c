@@ -534,3 +534,10 @@ RADEONTexOffsetStart(PixmapPtr pPix)
 	return info->fbLocation + offset;
 }
 #endif
+
+Bool RADEONSetupMemEXAKernel(ScreenPtr pScreen)
+{
+
+
+}
+

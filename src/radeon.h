@@ -414,6 +414,27 @@ typedef enum {
 
 typedef struct _atomBiosHandle *atomBiosHandlePtr;
 
+#define RADEON_POOL_GART 0
+#define RADEON_POOL_VRAM 1
+
+struct radeon_memory {
+    int pool; // memory is VRAM vs GART
+    unsigned long offset;
+    unsigned long end;
+
+    unsigned long size;
+    unsigned long allocated_size;
+    uint64_t bus_addr;
+    int key;
+
+    Bool bound;
+    unsigned long agp_offset;
+    unsigned int pitch;
+    char *name;
+    struct radeon_memory *next, *prev;
+    uint32_t kernel_bo_handle;
+};
+    
 typedef struct {
     uint32_t pci_device_id;
     RADEONChipFamily chip_family;
