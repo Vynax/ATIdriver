@@ -416,24 +416,6 @@ typedef struct _atomBiosHandle *atomBiosHandlePtr;
 
 #define RADEON_POOL_GART 0
 #define RADEON_POOL_VRAM 1
-
-struct radeon_memory {
-    int pool; // memory is VRAM vs GART
-    unsigned long offset;
-    unsigned long end;
-
-    unsigned long size;
-    unsigned long allocated_size;
-    uint64_t bus_addr;
-    int key;
-
-    Bool bound;
-    unsigned long agp_offset;
-    unsigned int pitch;
-    char *name;
-    struct radeon_memory *next, *prev;
-    uint32_t kernel_bo_handle;
-};
     
 typedef struct {
     uint32_t pci_device_id;
@@ -913,6 +895,23 @@ typedef struct {
 
     Bool              r4xx_atom;
 
+    Bool drm_mm; // the drm memory manager exists and is initialised 
+    struct {
+      uint64_t vram_start;
+      uint64_t vram_size;
+      uint64_t gart_start;
+      uint64_t gart_size;
+
+      struct radeon_memory *bo_list[2];
+      struct radeon_memory *front_buffer;
+      struct radeon_memory *back_buffer;
+      struct radeon_memory *depth_buffer;
+
+      struct radeon_memory *exa_buffer;
+      struct radeon_memory *texture_buffer;
+      
+    } mm;
+
 } RADEONInfoRec, *RADEONInfoPtr;
 
 #define RADEONWaitForFifo(pScrn, entries)				\
@@ -1167,6 +1166,11 @@ radeon_legacy_allocate_memory(ScrnInfoPtr pScrn,
 extern void
 radeon_legacy_free_memory(ScrnInfoPtr pScrn,
 		          void *mem_struct);
+
+/* radeon_memory.c */
+extern Bool radeon_bind_all_memory(ScrnInfoPtr pScrn);
+extern Bool radeon_unbind_all_memory(ScrnInfoPtr pScrn);
+extern struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int size, int alignment, Bool no_backing_store, char *name);
 
 #ifdef XF86DRI
 #  ifdef USE_XAA

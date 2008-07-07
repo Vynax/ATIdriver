@@ -3333,7 +3333,7 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
     int            subPixelOrder = SubPixelUnknown;
     char*          s;
 #endif
-
+    void *front_ptr;
 
     info->accelOn      = FALSE;
 #ifdef USE_XAA
@@ -3566,6 +3566,15 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 	}
     }
 
+    front_ptr = info->FB;
+    if (info->drm_mm) {
+      radeon_setup_kernel_mem(pScreen);
+      front_ptr = info->mm.front_buffer->bus_addr;
+      pScrn->fbOffset = info->mm.front_buffer->offset;
+      info->dst_pitch_offset = (((pScrn->displayWidth * info->CurrentLayout.pixel_bytes / 64)
+				 << 22) | ((info->fbLocation + pScrn->fbOffset) >> 10));
+    }
+
     /* Tell DRI about new memory map */
     if (info->directRenderingEnabled && info->dri->newMemoryMap) {
         if (RADEONDRISetParam(pScrn, RADEON_SETPARAM_NEW_MEMMAP, 1) < 0) {
@@ -3598,7 +3607,7 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 
     if (info->r600_shadow_fb == FALSE) {
 	/* Init fb layer */
-	if (!fbScreenInit(pScreen, info->FB,
+	if (!fbScreenInit(pScreen, front_ptr,
 			  pScrn->virtualX, pScrn->virtualY,
 			  pScrn->xDpi, pScrn->yDpi, pScrn->displayWidth,
 			  pScrn->bitsPerPixel))

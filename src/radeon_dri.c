@@ -72,6 +72,20 @@ static size_t radeon_drm_page_size;
 extern void GlxSetVisualConfigs(int nconfigs, __GLXvisualConfig *configs,
 				void **configprivs);
 
+#if defined(DAMAGE) && (DRIINFO_MAJOR_VERSION > 5 ||            \
+                        (DRIINFO_MAJOR_VERSION == 5 && DRIINFO_MINOR_VERSION >= 1))
+#define DRI_SUPPORTS_CLIP_NOTIFY 1
+#else
+#define DRI_SUPPORTS_CLIP_NOTIFY 0
+#endif
+
+#if (DRIINFO_MAJOR_VERSION > 5 || \
+     (DRIINFO_MAJOR_VERSION == 5 && DRIINFO_MINOR_VERSION >= 4))
+#define DRI_DRIVER_FRAMEBUFFER_MAP 1
+#else
+#define DRI_DRIVER_FRAMEBUFFER_MAP 0
+#endif
+
 static void RADEONDRITransitionTo2d(ScreenPtr pScreen);
 static void RADEONDRITransitionTo3d(ScreenPtr pScreen);
 static void RADEONDRITransitionMultiToSingle3d(ScreenPtr pScreen);
@@ -80,8 +94,7 @@ static void RADEONDRITransitionSingleToMulti3d(ScreenPtr pScreen);
 #ifdef DAMAGE
 static void RADEONDRIRefreshArea(ScrnInfoPtr pScrn, RegionPtr pReg);
 
-#if (DRIINFO_MAJOR_VERSION > 5 ||		\
-     (DRIINFO_MAJOR_VERSION == 5 && DRIINFO_MINOR_VERSION >= 1))
+#if DRI_SUPPORTS_CLIP_NOTIFY
 static void RADEONDRIClipNotify(ScreenPtr pScreen, WindowPtr *ppWin, int num);
 #endif
 #endif
@@ -1446,12 +1459,11 @@ Bool RADEONDRIGetVersion(ScrnInfoPtr pScrn)
 
     /* Get DRM version & close DRM */
     info->dri->pKernelDRMVersion = drmGetVersion(fd);
-    drmClose(fd);
     if (info->dri->pKernelDRMVersion == NULL) {
 	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 		   "[dri] RADEONDRIGetVersion failed to get the DRM version\n"
 		   "[dri] Disabling DRI.\n");
-	return FALSE;
+	goto fail;
     }
 
     /* Now check if we qualify */
@@ -1485,10 +1497,30 @@ Bool RADEONDRIGetVersion(ScrnInfoPtr pScrn)
 		   req_patch);
 	drmFreeVersion(info->dri->pKernelDRMVersion);
 	info->dri->pKernelDRMVersion = NULL;
-	return FALSE;
+	goto fail;
     }
 
+    if (info->pKernelDRMVersion->version_minor >= 30) {
+	    struct drm_radeon_gem_info mminfo;
+
+	    if (!drmCommandWriteRead(fd, DRM_RADEON_GEM_INFO, &mminfo, sizeof(mminfo)))
+	    {
+		    info->drm_mm = TRUE;
+		    info->mm.vram_start = mminfo.vram_start;
+		    info->mm.vram_size = mminfo.vram_size;
+		    info->mm.gart_start = mminfo.vram_start;
+		    info->mm.gart_size = mminfo.gart_size;
+		    ErrorF("initing %llx %llx %llx %llx\n", mminfo.gart_start,
+			   mminfo.gart_size, mminfo.vram_start, mminfo.vram_size);
+	    }
+>>>>>>> add initial support for a kernel memory manager:src/radeon_dri.c
+    }
+
+    drmClose(fd);
     return TRUE;
+fail:
+    drmClose(fd);
+    return FALSE;
 }
 
 Bool RADEONDRISetVBlankInterrupt(ScrnInfoPtr pScrn, Bool on)
@@ -1516,6 +1548,44 @@ Bool RADEONDRISetVBlankInterrupt(ScrnInfoPtr pScrn, Bool on)
     return TRUE;
 }
 
+Bool RADEONDRIDoMappings(ScreenPtr pScreen)
+{
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    RADEONInfoPtr  info    = RADEONPTR(pScrn);
+    
+				/* DRIScreenInit doesn't add all the
+				 * common mappings.  Add additional
+				 * mappings here.
+				 */
+    if (!RADEONDRIMapInit(info, pScreen)) {
+	RADEONDRICloseScreen(pScreen);
+	return FALSE;
+    }
+    
+    
+    
+				/* DRIScreenInit adds the frame buffer
+				   map, but we need it as well */
+    {
+	void *scratch_ptr;
+        int scratch_int;
+
+	DRIGetDeviceInfo(pScreen, &info->dri->fbHandle,
+                         &scratch_int, &scratch_int,
+                         &scratch_int, &scratch_int,
+                         &scratch_ptr);
+    }
+
+				/* FIXME: When are these mappings unmapped? */
+
+    if (!RADEONInitVisualConfigs(pScreen)) {
+	RADEONDRICloseScreen(pScreen);
+	return FALSE;
+    }
+    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "[dri] Visual configs initialized\n");
+    return TRUE;
+
+}
 
 /* Initialize the screen-specific data structures for the DRI and the
  * Radeon.  This is the main entry point to the device-specific
@@ -1579,10 +1649,18 @@ Bool RADEONDRIScreenInit(ScreenPtr pScreen)
     pDRIInfo->ddxDriverMajorVersion      = info->allowColorTiling ? 5 : 4;
     pDRIInfo->ddxDriverMinorVersion      = 3;
     pDRIInfo->ddxDriverPatchVersion      = 0;
+
+#if DRI_DRIVER_FRAMEBUFFER_MAP
+    pDRIInfo->frameBufferPhysicalAddress = 0;
+    pDRIInfo->frameBufferSize = 0;
+    pDRIInfo->frameBufferStride = 0;
+    pDRIInfo->dontMapFrameBuffer = TRUE;
+#else
     pDRIInfo->frameBufferPhysicalAddress = (void *)info->LinearAddr + info->dri->frontOffset;
     pDRIInfo->frameBufferSize            = info->FbMapSize - info->FbSecureSize;
     pDRIInfo->frameBufferStride          = (pScrn->displayWidth *
 					    info->CurrentLayout.pixel_bytes);
+#endif
     pDRIInfo->ddxDrawableTableEntry      = RADEON_MAX_DRAWABLES;
     pDRIInfo->maxDrawableTableEntry      = (SAREA_MAX_DRAWABLES
 					    < RADEON_MAX_DRAWABLES
@@ -1635,9 +1713,7 @@ Bool RADEONDRIScreenInit(ScreenPtr pScreen)
     pDRIInfo->TransitionTo3d = RADEONDRITransitionTo3d;
     pDRIInfo->TransitionSingleToMulti3D = RADEONDRITransitionSingleToMulti3d;
     pDRIInfo->TransitionMultiToSingle3D = RADEONDRITransitionMultiToSingle3d;
-#if defined(DAMAGE) && (DRIINFO_MAJOR_VERSION > 5 ||	\
-			(DRIINFO_MAJOR_VERSION == 5 &&	\
-			 DRIINFO_MINOR_VERSION >= 1))
+#if DRI_SUPPORT_CLIP_NOTIFY
     pDRIInfo->ClipNotify     = RADEONDRIClipNotify;
 #endif
 
@@ -1669,6 +1745,25 @@ Bool RADEONDRIScreenInit(ScreenPtr pScreen)
 	pDRIInfo = NULL;
 	return FALSE;
     }
+
+    /* Now, nuke dri.c's dummy frontbuffer map setup if we did that. */
+    if (pDRIInfo->frameBufferSize != 0) {
+	int tmp;
+	drm_handle_t fb_handle;
+	void *ptmp;
+
+	/* With the compat method, it will continue to report
+	 * the wrong map out of GetDeviceInfo, which will break AIGLX.
+	 */
+	DRIGetDeviceInfo(pScreen, &fb_handle, &tmp, &tmp, &tmp, &tmp, &ptmp);
+	drmRmMap(info->drmFD, fb_handle);
+
+	xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+		   "Removed DRI frontbuffer mapping in compatibility mode.\n");
+	xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+		   "DRIGetDeviceInfo will report incorrect frontbuffer "
+		   "handle.\n");
+    }
 				/* Initialize AGP */
     if (info->cardType==CARD_AGP && !RADEONDRIAgpInit(info, pScreen)) {
 	xf86DrvMsg(pScreen->myNum, X_ERROR,
@@ -1686,56 +1781,6 @@ Bool RADEONDRIScreenInit(ScreenPtr pScreen)
 		   "[pci] PCI failed to initialize. Disabling the DRI.\n" );
 	RADEONDRICloseScreen(pScreen);
 	return FALSE;
-    }
-
-				/* DRIScreenInit doesn't add all the
-				 * common mappings.  Add additional
-				 * mappings here.
-				 */
-    if (!RADEONDRIMapInit(info, pScreen)) {
-	RADEONDRICloseScreen(pScreen);
-	return FALSE;
-    }
-
-				/* DRIScreenInit adds the frame buffer
-				   map, but we need it as well */
-    {
-	void *scratch_ptr;
-        int scratch_int;
-
-	DRIGetDeviceInfo(pScreen, &info->dri->fbHandle,
-                         &scratch_int, &scratch_int,
-                         &scratch_int, &scratch_int,
-                         &scratch_ptr);
-    }
-
-				/* FIXME: When are these mappings unmapped? */
-
-    if (!RADEONInitVisualConfigs(pScreen)) {
-	RADEONDRICloseScreen(pScreen);
-	return FALSE;
-    }
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "[dri] Visual configs initialized\n");
-
-    {
-	int page_size = getpagesize();
-	struct drm_radeon_gem_init init_args;
-
-	int ret;
-
-	unsigned long aperStart = ((info->pciAperSize * 1024 * 1024) - (16384 * 1024)) / page_size;
-	unsigned long aperEnd = ((info->pciAperSize * 1024 * 1024)) / page_size;
-
-	init_args.gtt_start = aperStart;
-	init_args.gtt_end = aperEnd;
-	init_args.vram_start = info->FbMapSize / page_size;
-	init_args.vram_end = (pScrn->videoRam * 1024) / page_size;
-
-	ErrorF("initing %llx %llx %llx %llx\n", init_args.gtt_start,
-	       init_args.gtt_end, init_args.vram_start, init_args.vram_end);
-	ret = drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_INIT, &init_args, sizeof(init_args));
-	if (ret)
-	    ErrorF("ioctl failed %d\n", ret);
     }
 
     return TRUE;
@@ -2376,18 +2421,4 @@ int RADEONDRISetParam(ScrnInfoPtr pScrn, unsigned int param, int64_t value)
     return ret;
 }
 
-int RADEONAllocateKernelVRAM(ScrnInfoPtr pScrn, int size, int alignment, Boolean no_backing_store, uint32_t *handle)
-{
-    struct drm_radeon_gem_create args;
 
-    args.size = size;
-    args.alignment = alignment;
-    args.initial_domain = RADEON_GEM_DOMAIN_GPU;
-    args.no_backing_store = no_backing_store;
-
-
-    ret = drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_CREATE, &args, sizeof(args));
-
-    *handle = args.handle;
-    return ret;
-}

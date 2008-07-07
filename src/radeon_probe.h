@@ -146,6 +146,25 @@ typedef struct
     Bool hw_capable;
 } RADEONI2CBusRec, *RADEONI2CBusPtr;
 
+struct radeon_memory {
+    int pool; // memory is VRAM vs GART
+    unsigned long offset;
+    unsigned long end;
+
+    unsigned long size;
+    unsigned long allocated_size;
+    uint64_t bus_addr;
+    int key;
+
+    Bool bound;
+    unsigned long agp_offset;
+    unsigned int pitch;
+    char *name;
+    struct radeon_memory *next, *prev;
+    uint32_t alignment;
+    uint32_t kernel_bo_handle;
+};
+
 typedef struct _RADEONCrtcPrivateRec {
     void *crtc_rotate_mem;
     void *cursor_mem;
@@ -159,6 +178,8 @@ typedef struct _RADEONCrtcPrivateRec {
     int can_tile;
     Bool enabled;
     Bool initialized;
+    struct radeon_memory *cursor;
+
 } RADEONCrtcPrivateRec, *RADEONCrtcPrivatePtr;
 
 typedef struct _radeon_encoder {
