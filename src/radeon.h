@@ -507,13 +507,13 @@ struct radeon_dri {
     drm_handle_t      ringHandle;       /* Handle from drmAddMap */
     drmSize           ringMapSize;      /* Size of map */
     int               ringSize;         /* Size of ring (in MB) */
-    drmAddress        ring;             /* Map */
+  //    drmAddress        ring;             /* Map */
     int               ringSizeLog2QW;
 
     unsigned long     ringReadOffset;   /* Offset into GART space */
     drm_handle_t      ringReadPtrHandle; /* Handle from drmAddMap */
     drmSize           ringReadMapSize;  /* Size of map */
-    drmAddress        ringReadPtr;      /* Map */
+  //    drmAddress        ringReadPtr;      /* Map */
 
     /* CP vertex/indirect buffer data */
     unsigned long     bufStart;         /* Offset into GART space */
@@ -909,6 +909,9 @@ typedef struct {
 
       struct radeon_memory *exa_buffer;
       struct radeon_memory *texture_buffer;
+
+      struct radeon_memory *dma_buffer;
+      struct radeon_memory *gart_texture_buffer;
       
     } mm;
 

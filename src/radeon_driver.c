@@ -3661,7 +3661,7 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
     /* DRI finalisation */
 #ifdef XF86DRI
     if (info->directRenderingEnabled && info->cardType==CARD_PCIE &&
-        info->dri->pKernelDRMVersion->version_minor >= 19)
+        info->dri->pKernelDRMVersion->version_minor >= 19 && !info->drm_mm)
     {
       if (RADEONDRISetParam(pScrn, RADEON_SETPARAM_PCIGART_LOCATION, info->dri->pciGartOffset) < 0)
 	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,

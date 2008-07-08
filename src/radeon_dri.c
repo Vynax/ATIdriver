@@ -91,6 +91,8 @@ static void RADEONDRITransitionTo3d(ScreenPtr pScreen);
 static void RADEONDRITransitionMultiToSingle3d(ScreenPtr pScreen);
 static void RADEONDRITransitionSingleToMulti3d(ScreenPtr pScreen);
 
+static Bool radeon_dri_gart_init(ScreenPtr pScreen);
+
 #ifdef DAMAGE
 static void RADEONDRIRefreshArea(ScrnInfoPtr pScrn, RegionPtr pReg);
 
@@ -1007,6 +1009,8 @@ static Bool RADEONDRIAgpInit(RADEONInfoPtr info, ScreenPtr pScreen)
 	       "[agp] ring handle = 0x%08x\n",
 	       (unsigned int)info->dri->ringHandle);
 
+
+#if 0
     if (drmMap(info->dri->drmFD, info->dri->ringHandle, info->dri->ringMapSize,
 	       &info->dri->ring) < 0) {
 	xf86DrvMsg(pScreen->myNum, X_ERROR, "[agp] Could not map ring\n");
@@ -1015,9 +1019,10 @@ static Bool RADEONDRIAgpInit(RADEONInfoPtr info, ScreenPtr pScreen)
     xf86DrvMsg(pScreen->myNum, X_INFO,
 	       "[agp] Ring mapped at 0x%08lx\n",
 	       (unsigned long)info->dri->ring);
-
+#endif
     if (drmAddMap(info->dri->drmFD, info->dri->ringReadOffset, info->dri->ringReadMapSize,
 		  DRM_AGP, DRM_READ_ONLY, &info->dri->ringReadPtrHandle) < 0) {
+
 	xf86DrvMsg(pScreen->myNum, X_ERROR,
 		   "[agp] Could not add ring read ptr mapping\n");
 	return FALSE;
@@ -1026,6 +1031,8 @@ static Bool RADEONDRIAgpInit(RADEONInfoPtr info, ScreenPtr pScreen)
  	       "[agp] ring read ptr handle = 0x%08x\n",
 	       (unsigned int)info->dri->ringReadPtrHandle);
 
+
+#if 0
     if (drmMap(info->dri->drmFD, info->dri->ringReadPtrHandle, info->dri->ringReadMapSize,
 	       &info->dri->ringReadPtr) < 0) {
 	xf86DrvMsg(pScreen->myNum, X_ERROR,
@@ -1035,6 +1042,7 @@ static Bool RADEONDRIAgpInit(RADEONInfoPtr info, ScreenPtr pScreen)
     xf86DrvMsg(pScreen->myNum, X_INFO,
 	       "[agp] Ring read ptr mapped at 0x%08lx\n",
 	       (unsigned long)info->dri->ringReadPtr);
+#endif
 
     if (drmAddMap(info->dri->drmFD, info->dri->bufStart, info->dri->bufMapSize,
 		  DRM_AGP, 0, &info->dri->bufHandle) < 0) {
@@ -1112,6 +1120,7 @@ static Bool RADEONDRIPciInit(RADEONInfoPtr info, ScreenPtr pScreen)
 	       "[pci] ring handle = 0x%08x\n",
 	       (unsigned int)info->dri->ringHandle);
 
+#if 0
     if (drmMap(info->dri->drmFD, info->dri->ringHandle, info->dri->ringMapSize,
 	       &info->dri->ring) < 0) {
 	xf86DrvMsg(pScreen->myNum, X_ERROR, "[pci] Could not map ring\n");
@@ -1123,6 +1132,7 @@ static Bool RADEONDRIPciInit(RADEONInfoPtr info, ScreenPtr pScreen)
     xf86DrvMsg(pScreen->myNum, X_INFO,
 	       "[pci] Ring contents 0x%08lx\n",
 	       *(unsigned long *)(pointer)info->dri->ring);
+#endif
 
     if (drmAddMap(info->dri->drmFD, info->dri->ringReadOffset, info->dri->ringReadMapSize,
 		  DRM_SCATTER_GATHER, flags, &info->dri->ringReadPtrHandle) < 0) {
@@ -1136,6 +1146,7 @@ static Bool RADEONDRIPciInit(RADEONInfoPtr info, ScreenPtr pScreen)
 
     if (drmMap(info->dri->drmFD, info->dri->ringReadPtrHandle, info->dri->ringReadMapSize,
 	       &info->dri->ringReadPtr) < 0) {
+#if 0
 	xf86DrvMsg(pScreen->myNum, X_ERROR,
 		   "[pci] Could not map ring read ptr\n");
 	return FALSE;
@@ -1146,6 +1157,7 @@ static Bool RADEONDRIPciInit(RADEONInfoPtr info, ScreenPtr pScreen)
     xf86DrvMsg(pScreen->myNum, X_INFO,
 	       "[pci] Ring read ptr contents 0x%08lx\n",
 	       *(unsigned long *)(pointer)info->dri->ringReadPtr);
+#endif
 
     if (drmAddMap(info->dri->drmFD, info->dri->bufStart, info->dri->bufMapSize,
 		  DRM_SCATTER_GATHER, 0, &info->dri->bufHandle) < 0) {
@@ -1764,24 +1776,38 @@ Bool RADEONDRIScreenInit(ScreenPtr pScreen)
 		   "DRIGetDeviceInfo will report incorrect frontbuffer "
 		   "handle.\n");
     }
-				/* Initialize AGP */
-    if (info->cardType==CARD_AGP && !RADEONDRIAgpInit(info, pScreen)) {
-	xf86DrvMsg(pScreen->myNum, X_ERROR,
-		   "[agp] AGP failed to initialize. Disabling the DRI.\n" );
-	xf86DrvMsg(pScreen->myNum, X_INFO,
-		   "[agp] You may want to make sure the agpgart kernel "
-		   "module\nis loaded before the radeon kernel module.\n");
-	RADEONDRICloseScreen(pScreen);
-	return FALSE;
+   
+    if (info->drm_mm) {
+	int ret;
+	ret = radeon_dri_gart_init(pScreen);
+	if (!ret) {
+	    xf86DrvMsg(pScreen->myNum, X_ERROR,
+		       "[gart] GART failed to initialize. Disabling the DRI.\n" );
+	    RADEONDRICloseScreen(pScreen);
+	    return FALSE;
+	}
+    } else {
+	if (info->cardType==CARD_AGP && !RADEONDRIAgpInit(info, pScreen)) {
+	    /* Initialize AGP */
+	    xf86DrvMsg(pScreen->myNum, X_ERROR,
+		       "[agp] AGP failed to initialize. Disabling the DRI.\n" );
+	    xf86DrvMsg(pScreen->myNum, X_INFO,
+		       "[agp] You may want to make sure the agpgart kernel "
+		       "module\nis loaded before the radeon kernel module.\n");
+	    RADEONDRICloseScreen(pScreen);
+	    return FALSE;
+	}
+	
+				/* Initialize PCI */
+	if ((info->cardType!=CARD_AGP) && !RADEONDRIPciInit(info, pScreen)) {
+	    xf86DrvMsg(pScreen->myNum, X_ERROR,
+		       "[pci] PCI failed to initialize. Disabling the DRI.\n" );
+	    RADEONDRICloseScreen(pScreen);
+	    return FALSE;
+	}
     }
 
-				/* Initialize PCI */
-    if ((info->cardType!=CARD_AGP) && !RADEONDRIPciInit(info, pScreen)) {
-	xf86DrvMsg(pScreen->myNum, X_ERROR,
-		   "[pci] PCI failed to initialize. Disabling the DRI.\n" );
-	RADEONDRICloseScreen(pScreen);
-	return FALSE;
-    }
+    RADEONDRIDoMappings(pScreen);
 
     return TRUE;
 }
@@ -2003,6 +2029,8 @@ void RADEONDRICloseScreen(ScreenPtr pScreen)
 	drmUnmap(info->dri->buf, info->dri->bufMapSize);
 	info->dri->buf = NULL;
     }
+
+#if 0
     if (info->dri->ringReadPtr) {
 	drmUnmap(info->dri->ringReadPtr, info->dri->ringReadMapSize);
 	info->dri->ringReadPtr = NULL;
@@ -2011,6 +2039,7 @@ void RADEONDRICloseScreen(ScreenPtr pScreen)
 	drmUnmap(info->dri->ring, info->dri->ringMapSize);
 	info->dri->ring = NULL;
     }
+#endif
     if (info->dri->agpMemHandle != DRM_AGP_NO_HANDLE) {
 	drmAgpUnbind(info->dri->drmFD, info->dri->agpMemHandle);
 	drmAgpFree(info->dri->drmFD, info->dri->agpMemHandle);
@@ -2421,4 +2450,23 @@ int RADEONDRISetParam(ScrnInfoPtr pScrn, unsigned int param, int64_t value)
     return ret;
 }
 
+Bool radeon_update_dri_buffers(ScrnInfoPtr pScrn)
+{
+    ScreenPtr pScreen = pScrn->pScreen;
 
+    return TRUE;
+}
+
+static Bool radeon_dri_gart_init(ScreenPtr pScreen)
+{
+    ScrnInfoPtr    pScrn   = xf86Screens[pScreen->myNum];
+    RADEONInfoPtr  info    = RADEONPTR(pScrn);
+
+    RADEONDRIInitGARTValues(info);
+
+    /* so we want to allocate the buffers/gart texmap */
+
+    
+    return radeon_setup_gart_mem(pScreen);
+    /* ignore ring stuff */
+}
