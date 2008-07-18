@@ -95,7 +95,8 @@ radeon_drv_la_SOURCES = \
 	radeon_textured_video.c \
 	radeon_crtc.c radeon_output.c radeon_modes.c radeon_tv.c \
 	$(RADEON_ATOMBIOS_SOURCES) radeon_atombios.c radeon_atomwrapper.c \
-	$(RADEON_DRI_SRCS) $(RADEON_EXA_SOURCES) atombios_output.c atombios_crtc.c 
+	$(RADEON_DRI_SRCS) $(RADEON_EXA_SOURCES) atombios_output.c atombios_crtc.c  \
+	drmmode_display.c
 
 if XMODES
 radeon_drv_la_SOURCES += \
@@ -164,4 +165,5 @@ EXTRA_DIST = \
 	radeon_pci_device_match_gen.h \
 	pcidb/ati_pciids.csv \
 	pcidb/parse_pci_ids.pl \
-	radeon_atombios.h
+	radeon_atombios.h \
+	drmmode_display.h

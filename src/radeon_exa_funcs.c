@@ -93,6 +93,8 @@ FUNC_NAME(RADEONPrepareSolid)(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
 
     TRACE;
 
+    RADEON_FALLBACK("ASS");
+
     if (pPix->drawable.bitsPerPixel == 24)
 	RADEON_FALLBACK(("24bpp unsupported\n"));
     if (!RADEONGetDatatypeBpp(pPix->drawable.bitsPerPixel, &datatype))
@@ -192,6 +194,8 @@ FUNC_NAME(RADEONPrepareCopy)(PixmapPtr pSrc,   PixmapPtr pDst,
     uint32_t datatype, src_pitch_offset, dst_pitch_offset;
 
     TRACE;
+
+    RADEON_FALLBACK("ASS");
 
     info->accel_state->xdir = xdir;
     info->accel_state->ydir = ydir;

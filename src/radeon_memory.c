@@ -32,7 +32,7 @@ radeon_bind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 
 		mem->bound = TRUE;
 		mem->offset = pin.offset;
-		ErrorF("pin returned 0x%x\n", pin.offset);
+		ErrorF("pin returned 0x%llx\n", pin.offset);
 		mem->end = mem->offset + mem->size;
 		return TRUE;
 	}
@@ -197,7 +197,7 @@ int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 
     if (!ret)
 	mem->bus_addr = args.addr_ptr;
-    ErrorF("Mapped %s size %d at %d %p\n", mem->name, mem->size, mem->offset, mem->bus_addr);
+    ErrorF("Mapped %s size %d at %d %p\n", mem->name, mem->size, mem->offset, (void *)mem->bus_addr);
     return ret;
 }
 
@@ -222,8 +222,10 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     int cpp = info->CurrentLayout.pixel_bytes;
     int screen_size;
     int stride = pScrn->displayWidth * cpp;
-    int total_size = 32*1024, remain_size;
+    int total_size = (8*1024*1024)+32*1024, remain_size;
     screen_size = RADEON_ALIGN(pScrn->virtualY, 16) * stride;
+
+    ErrorF("%d x %d x %d\n", pScrn->displayWidth, pScrn->virtualY, cpp);
 
     {
 	int cursor_size = 64 * 4 * 64;
@@ -231,21 +233,27 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 
 	for (c = 0; c < xf86_config->num_crtc; c++) {
 	    /* cursor objects */
-	    xf86CrtcPtr crtc = xf86_config->crtc[c];
-	    RADEONCrtcPrivatePtr radeon_crtc = crtc->driver_private;
-
-	    radeon_crtc->cursor = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, cursor_size, 0, 1, "Cursor");
-	    if (!radeon_crtc->cursor) {
+	    info->mm.cursor[c] = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, cursor_size, 0, 1, "Cursor");
+	    if (!info->mm.cursor[c]) {
 		return FALSE;
 	    }
 
-	    radeon_bind_memory(pScrn, radeon_crtc->cursor);
-	    if (radeon_map_memory(pScrn, radeon_crtc->cursor)) {
-	      ErrorF("Failed to map front buffer memory\n");
+	    radeon_bind_memory(pScrn, info->mm.cursor[c]);
+
+	    if (radeon_map_memory(pScrn, info->mm.cursor[c])) {
+		ErrorF("Failed to map front buffer memory\n");
 	    }
-	    total_size += cursor_size;
+	    
+	    if (!info->drm_mode_setting) {
+		xf86CrtcPtr crtc = xf86_config->crtc[c];
+		RADEONCrtcPrivatePtr radeon_crtc = crtc->driver_private;
+		radeon_crtc->cursor = info->mm.cursor[c];
+	    } else {
+		drmmode_set_cursor(pScrn, &info->drmmode, c, (void *)info->mm.cursor[c]->bus_addr, info->mm.cursor[c]->kernel_bo_handle);
+	    }
 	}
     }
+
 
 
 
@@ -260,6 +268,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 	ErrorF("Failed to map front buffer memory\n");
     }
 
+    if (info->directRenderingEnabled) {
     info->backPitch = pScrn->displayWidth;
     info->mm.back_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, screen_size, 0, 1, "Back Buffer");
     if (!info->mm.back_buffer) {
@@ -279,7 +288,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 	radeon_bind_memory(pScrn, info->mm.depth_buffer);
 	total_size += depth_size;
     }
-
+    }
     /* work out from the mm size what the exa / tex sizes need to be */
     remain_size = (info->mm.vram_size * 1024) - total_size;
 
@@ -312,6 +321,9 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     }
     radeon_bind_memory(pScrn, info->mm.texture_buffer);
 
+    if (info->drm_mode_setting) {
+	drmmode_set_fb(pScrn, &info->drmmode, pScrn->virtualX, RADEON_ALIGN(pScrn->virtualY, 16), stride, info->mm.front_buffer->kernel_bo_handle);
+    }
     return TRUE;
 }
 
@@ -340,4 +352,13 @@ Bool radeon_setup_gart_mem(ScreenPtr pScreen)
     }
 
     radeon_bind_memory(pScrn, info->mm.gart_texture_buffer);
+    return TRUE;
 }
+
+uint32_t radeon_create_new_fb(ScrnInfoPtr pScrn, int width, int height, int *pitch)
+{
+    return 0;
+}
+
+
+

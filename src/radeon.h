@@ -46,6 +46,8 @@
 #include "compiler.h"
 #include "xf86fbman.h"
 
+#include "drmmode_display.h"
+
 				/* PCI support */
 #include "xf86Pci.h"
 
@@ -912,8 +914,14 @@ typedef struct {
 
       struct radeon_memory *dma_buffer;
       struct radeon_memory *gart_texture_buffer;
+      struct radeon_memory *cursor[2];
       
     } mm;
+
+    Bool drm_mode_setting;
+#ifdef XF86DRM_MODE
+    drmmode_rec drmmode;
+#endif
 
 } RADEONInfoRec, *RADEONInfoPtr;
 
@@ -1474,5 +1482,7 @@ static __inline__ int radeon_timedout(const struct timeval *endtime)
     return now.tv_sec == endtime->tv_sec ?
         now.tv_usec > endtime->tv_usec : now.tv_sec > endtime->tv_sec;
 }
+
+uint32_t radeon_create_new_fb(ScrnInfoPtr pScrn, int width, int height, int *pitch);
 
 #endif /* _RADEON_H_ */

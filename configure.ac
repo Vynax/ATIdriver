@@ -114,6 +114,13 @@ if test "$DRI" = yes; then
 	if test "$have_damage_h" = yes; then
 		AC_DEFINE(DAMAGE,1,[Use Damage extension])
 	fi
+
+        save_CFLAGS="$CFLAGS"
+        CFLAGS="$XORG_CFLAGS $DRI_CFLAGS"
+        AC_CHECK_HEADER(xf86drmMode.h,[DRM_MODE=yes],[DRM_MODE=no],[#include "stdint.h"])
+        if test "x$DRM_MODE" = xyes; then
+                AC_DEFINE(XF86DRM_MODE,1,[DRM kernel modesetting])
+        fi
 fi
 
 save_CFLAGS="$CFLAGS"

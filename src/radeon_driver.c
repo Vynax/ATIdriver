@@ -1827,59 +1827,61 @@ static Bool RADEONPreInitChipType(ScrnInfoPtr pScrn)
                    "R500 support is under development. Please report any issues to xorg-driver-ati@lists.x.org\n");
     }
 
-    from               = X_PROBED;
-    info->LinearAddr   = PCI_REGION_BASE(info->PciInfo, 0, REGION_MEM) & ~0x1ffffffULL;
-    pScrn->memPhysBase = info->LinearAddr;
-    if (dev->MemBase) {
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		   "Linear address override, using 0x%016lx instead of 0x%016llx\n",
-		   dev->MemBase,
-		   info->LinearAddr);
-	info->LinearAddr = dev->MemBase;
-	from             = X_CONFIG;
-    } else if (!info->LinearAddr) {
-	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		   "No valid linear framebuffer address\n");
-	return FALSE;
-    }
-    xf86DrvMsg(pScrn->scrnIndex, from,
-	       "Linear framebuffer at 0x%016llx\n", info->LinearAddr);
+    if (!info->drm_mode_setting) {
+	from               = X_PROBED;
+	info->LinearAddr   = PCI_REGION_BASE(info->PciInfo, 0, REGION_MEM) & ~0x1ffffffUL;
+	pScrn->memPhysBase = info->LinearAddr;
+	if (dev->MemBase) {
+	    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		       "Linear address override, using 0x%016lx instead of 0x%016llx\n",
+		       dev->MemBase,
+		       info->LinearAddr);
+	    info->LinearAddr = dev->MemBase;
+	    from             = X_CONFIG;
+	} else if (!info->LinearAddr) {
+	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+		       "No valid linear framebuffer address\n");
+	    return FALSE;
+	}
+	xf86DrvMsg(pScrn->scrnIndex, from,
+		   "Linear framebuffer at 0x%016llx\n", info->LinearAddr);
 
 #ifndef XSERVER_LIBPCIACCESS
-				/* BIOS */
-    from              = X_PROBED;
-    info->BIOSAddr    = info->PciInfo->biosBase & 0xfffe0000;
-    if (dev->BiosBase) {
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		   "BIOS address override, using 0x%08lx instead of 0x%08lx\n",
-		   (unsigned long)dev->BiosBase,
-		   (unsigned long)info->BIOSAddr);
-	info->BIOSAddr = dev->BiosBase;
-	from           = X_CONFIG;
-    }
-    if (info->BIOSAddr) {
-	xf86DrvMsg(pScrn->scrnIndex, from,
-		   "BIOS at 0x%08lx\n", (unsigned long)info->BIOSAddr);
-    }
+	/* BIOS */
+	from              = X_PROBED;
+	info->BIOSAddr    = info->PciInfo->biosBase & 0xfffe0000;
+	if (dev->BiosBase) {
+	    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		       "BIOS address override, using 0x%08lx instead of 0x%08lx\n",
+		       dev->BiosBase,
+		       info->BIOSAddr);
+	    info->BIOSAddr = dev->BiosBase;
+	    from           = X_CONFIG;
+	}
+	if (info->BIOSAddr) {
+	    xf86DrvMsg(pScrn->scrnIndex, from,
+		       "BIOS at 0x%08lx\n", info->BIOSAddr);
+	}
 #endif
 
-				/* Read registers used to determine options */
-    /* Check chip errata */
-    info->ChipErrata = 0;
+	/* Read registers used to determine options */
+	/* Check chip errata */
+	info->ChipErrata = 0;
 
-    if (info->ChipFamily == CHIP_FAMILY_R300 &&
-	(INREG(RADEON_CONFIG_CNTL) & RADEON_CFG_ATI_REV_ID_MASK)
-	== RADEON_CFG_ATI_REV_A11)
+	if (info->ChipFamily == CHIP_FAMILY_R300 &&
+	    (INREG(RADEON_CONFIG_CNTL) & RADEON_CFG_ATI_REV_ID_MASK)
+	    == RADEON_CFG_ATI_REV_A11)
 	    info->ChipErrata |= CHIP_ERRATA_R300_CG;
-
-    if (info->ChipFamily == CHIP_FAMILY_RV200 ||
-	info->ChipFamily == CHIP_FAMILY_RS200)
+	
+	if (info->ChipFamily == CHIP_FAMILY_RV200 ||
+	    info->ChipFamily == CHIP_FAMILY_RS200)
 	    info->ChipErrata |= CHIP_ERRATA_PLL_DUMMYREADS;
-
-    if (info->ChipFamily == CHIP_FAMILY_RV100 ||
-	info->ChipFamily == CHIP_FAMILY_RS100 ||
-	info->ChipFamily == CHIP_FAMILY_RS200)
+	
+	if (info->ChipFamily == CHIP_FAMILY_RV100 ||
+	    info->ChipFamily == CHIP_FAMILY_RS100 ||
+	    info->ChipFamily == CHIP_FAMILY_RS200)
 	    info->ChipErrata |= CHIP_ERRATA_PLL_DELAY;
+    }
 
 #ifdef XF86DRI
 				/* AGP/PCI */
@@ -2778,6 +2780,37 @@ static const xf86CrtcConfigFuncsRec RADEONCRTCResizeFuncs = {
     RADEONCRTCResize
 };
 
+#ifdef XF86DRM_MODE
+static Bool radeon_kernel_mode_enabled(ScrnInfoPtr pScrn)
+{
+#if XSERVER_LIBPCIACCESS
+    struct pci_device *PciInfo;
+#else
+    pciVideoPtr PciInfo;
+#endif
+    EntityInfoPtr pEnt;
+    char *busIdString;
+    int ret;
+
+    pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
+    PciInfo = xf86GetPciInfoForEntity(pEnt->index);
+
+    if (!xf86LoaderCheckSymbol("DRICreatePCIBusID"))
+	return FALSE;
+
+    busIdString = DRICreatePCIBusID(PciInfo);
+    ret = drmCheckModesettingSupported(busIdString);
+    xfree(busIdString);
+    if (ret)
+	return FALSE;
+
+    return TRUE;
+}
+#else
+#define radeon_kernel_mode_enabled(x) FALSE
+#endif
+
+
 Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 {
     xf86CrtcConfigPtr   xf86_config;
@@ -2797,6 +2830,8 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 
     info               = RADEONPTR(pScrn);
     info->MMIO         = NULL;
+
+    info->drm_mode_setting = radeon_kernel_mode_enabled(pScrn);
 
     info->IsSecondary  = FALSE;
     info->IsPrimary = FALSE;
@@ -2831,63 +2866,62 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 	info->ModeReg = &pRADEONEnt->ModeReg;
     }
 
-    info->PciInfo = xf86GetPciInfoForEntity(info->pEnt->index);
-    info->PciTag  = pciTag(PCI_DEV_BUS(info->PciInfo),
-			   PCI_DEV_DEV(info->PciInfo),
-			   PCI_DEV_FUNC(info->PciInfo));
-    info->MMIOAddr = PCI_REGION_BASE(info->PciInfo, 2, REGION_MEM) & ~0xffULL;
-    info->MMIOSize = PCI_REGION_SIZE(info->PciInfo, 2);
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "TOTO SAYS %016llx\n", 
-		(unsigned long long)PCI_REGION_BASE(info->PciInfo,
-		2, REGION_MEM));
-    if (info->pEnt->device->IOBase) {
-	xf86DrvMsg(pScrn->scrnIndex, X_CONFIG,
-		   "MMIO address override, using 0x%08lx instead of 0x%016llx\n",
-		   info->pEnt->device->IOBase,
-		   info->MMIOAddr);
-	info->MMIOAddr = info->pEnt->device->IOBase;
-    } else if (!info->MMIOAddr) {
-	xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "No valid MMIO address\n");
-	goto fail1;
-    }
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-	       "MMIO registers at 0x%016llx: size %ldKB\n", info->MMIOAddr, info->MMIOSize / 1024);
+    if (!info->drm_mode_setting) {
 
-    if(!RADEONMapMMIO(pScrn)) {
-	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-		   "Memory map the MMIO region failed\n");
-	goto fail1;
-    }
-
+	info->PciTag  = pciTag(PCI_DEV_BUS(info->PciInfo),
+			       PCI_DEV_DEV(info->PciInfo),
+			       PCI_DEV_FUNC(info->PciInfo));
+        info->MMIOAddr = PCI_REGION_BASE(info->PciInfo, 2, REGION_MEM) & ~0xffULL;
+	info->MMIOSize = PCI_REGION_SIZE(info->PciInfo, 2);
+	if (info->pEnt->device->IOBase) {
+	    xf86DrvMsg(pScrn->scrnIndex, X_CONFIG,
+		       "MMIO address override, using 0x%08lx instead of 0x%016llx\n",
+		       info->pEnt->device->IOBase,
+		       info->MMIOAddr);
+	    info->MMIOAddr = info->pEnt->device->IOBase;
+	} else if (!info->MMIOAddr) {
+	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "No valid MMIO address\n");
+	    goto fail1;
+	}
+        xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+	           "MMIO registers at 0x%016llx: size %ldKB\n", info->MMIOAddr, info->MMIOSize / 1024);
+	
+	if(!RADEONMapMMIO(pScrn)) {
+	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+		       "Memory map the MMIO region failed\n");
+	    goto fail1;
+	}
+	
 #if !defined(__alpha__)
-    if (
+	if (
 #ifndef XSERVER_LIBPCIACCESS
-	xf86GetPciDomain(info->PciTag) ||
+	    xf86GetPciDomain(info->PciTag) ||
 #endif
-	!xf86IsPrimaryPci(info->PciInfo))
-	RADEONPreInt10Save(pScrn, &int10_save);
+	    !xf86IsPrimaryPci(info->PciInfo))
+	    RADEONPreInt10Save(pScrn, &int10_save);
 #else
-    /* [Alpha] On the primary, the console already ran the BIOS and we're
-     *         going to run it again - so make sure to "fix up" the card
-     *         so that (1) we can read the BIOS ROM and (2) the BIOS will
-     *         get the memory config right.
-     */
-    RADEONPreInt10Save(pScrn, &int10_save);
+	/* [Alpha] On the primary, the console already ran the BIOS and we're
+	 *         going to run it again - so make sure to "fix up" the card
+	 *         so that (1) we can read the BIOS ROM and (2) the BIOS will
+	 *         get the memory config right.
+	 */
+	RADEONPreInt10Save(pScrn, &int10_save);
 #endif
+	
+	if (flags & PROBE_DETECT) {
+	    RADEONProbeDDC(pScrn, info->pEnt->index);
+	    RADEONPostInt10Check(pScrn, int10_save);
+	    if(info->MMIO) RADEONUnmapMMIO(pScrn);
+	    return TRUE;
+	}
 
-    if (flags & PROBE_DETECT) {
-	RADEONProbeDDC(pScrn, info->pEnt->index);
-	RADEONPostInt10Check(pScrn, int10_save);
-	if(info->MMIO) RADEONUnmapMMIO(pScrn);
-	return TRUE;
+
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		   "PCI bus %d card %d func %d\n",
+		   PCI_DEV_BUS(info->PciInfo),
+		   PCI_DEV_DEV(info->PciInfo),
+		   PCI_DEV_FUNC(info->PciInfo));
     }
-
-
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-	       "PCI bus %d card %d func %d\n",
-	       PCI_DEV_BUS(info->PciInfo),
-	       PCI_DEV_DEV(info->PciInfo),
-	       PCI_DEV_FUNC(info->PciInfo));
 
     if (xf86RegisterResources(info->pEnt->index, 0, ResExclusive))
 	goto fail;
@@ -2897,10 +2931,12 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
     pScrn->racMemFlags = RAC_FB | RAC_COLORMAP | RAC_VIEWPORT | RAC_CURSOR;
     pScrn->monitor     = pScrn->confScreen->monitor;
 
-   /* Allocate an xf86CrtcConfig */
-    xf86CrtcConfigInit (pScrn, &RADEONCRTCResizeFuncs);
-    xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
-
+    if (!info->drm_mode_setting) {
+	/* Allocate an xf86CrtcConfig */
+	xf86CrtcConfigInit (pScrn, &RADEONCRTCResizeFuncs);
+	xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
+	
+    }
 
     if (!RADEONPreInitVisual(pScrn))
 	goto fail;
@@ -2914,167 +2950,203 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
     memcpy(info->Options, RADEONOptions, sizeof(RADEONOptions));
     xf86ProcessOptions(pScrn->scrnIndex, pScrn->options, info->Options);
 
-    /* By default, don't do VGA IOs on ppc/sparc */
+    if (!info->drm_mode_setting) {
+	/* By default, don't do VGA IOs on ppc/sparc */
 #if defined(__powerpc__) || defined(__sparc__) || !defined(WITH_VGAHW)
-    info->VGAAccess = FALSE;
+	info->VGAAccess = FALSE;
 #else
-    info->VGAAccess = TRUE;
+	info->VGAAccess = TRUE;
 #endif
-
+	
 #ifdef WITH_VGAHW
-    xf86GetOptValBool(info->Options, OPTION_VGA_ACCESS, &info->VGAAccess);
-    if (info->VGAAccess) {
-       if (!xf86LoadSubModule(pScrn, "vgahw"))
-           info->VGAAccess = FALSE;
-        else {
-            if (!vgaHWGetHWRec(pScrn))
-               info->VGAAccess = FALSE;
-       }
-       if (!info->VGAAccess)
-           xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "Loading VGA module failed,"
-                      " trying to run without it\n");
-    } else
-           xf86DrvMsg(pScrn->scrnIndex, X_INFO, "VGAAccess option set to FALSE,"
-                      " VGA module load skipped\n");
-    if (info->VGAAccess)
-        vgaHWGetIOBase(VGAHWPTR(pScrn));
+	xf86GetOptValBool(info->Options, OPTION_VGA_ACCESS, &info->VGAAccess);
+	if (info->VGAAccess) {
+	    if (!xf86LoadSubModule(pScrn, "vgahw"))
+		info->VGAAccess = FALSE;
+	    else {
+		if (!vgaHWGetHWRec(pScrn))
+		    info->VGAAccess = FALSE;
+	    }
+	    if (!info->VGAAccess)
+		xf86DrvMsg(pScrn->scrnIndex, X_WARNING, "Loading VGA module failed,"
+			   " trying to run without it\n");
+	} else
+	    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "VGAAccess option set to FALSE,"
+		       " VGA module load skipped\n");
+	if (info->VGAAccess)
+	    vgaHWGetIOBase(VGAHWPTR(pScrn));
 #endif
-
-
+	
+    }
+	
     if (!RADEONPreInitWeight(pScrn))
 	goto fail;
 
-    info->DispPriority = 1;
-    if ((s = xf86GetOptValString(info->Options, OPTION_DISP_PRIORITY))) {
-	if (strcmp(s, "AUTO") == 0) {
-	    info->DispPriority = 1;
-	} else if (strcmp(s, "BIOS") == 0) {
-	    info->DispPriority = 0;
-	} else if (strcmp(s, "HIGH") == 0) {
-	    info->DispPriority = 2;
-	} else
-	    info->DispPriority = 1;
-    }
-
     if (!RADEONPreInitChipType(pScrn))
-	goto fail;
+        goto fail;
 
-    if (!RADEONPreInitInt10(pScrn, &pInt10))
-	goto fail;
-
-    RADEONPostInt10Check(pScrn, int10_save);
-
-    if (!RADEONPreInitBIOS(pScrn, pInt10))
-	goto fail;
-
-    /* Save BIOS scratch registers */
-    RADEONSaveBIOSRegisters(pScrn, info->SavedReg);
-
-#ifdef XF86DRI
-    /* PreInit DRI first of all since we need that for getting a proper
-     * memory map
-     */
-    info->directRenderingEnabled = RADEONPreInitDRI(pScrn);
-#endif
-    if (!info->directRenderingEnabled) {
-	if (info->ChipFamily >= CHIP_FAMILY_R600) {
-	    info->r600_shadow_fb = TRUE;
-	    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-			   "using shadow framebuffer\n");
-	    if (!xf86LoadSubModule(pScrn, "shadow"))
-		info->r600_shadow_fb = FALSE;
+    if (!info->drm_mode_setting) {
+	info->DispPriority = 1;
+	if ((s = xf86GetOptValString(info->Options, OPTION_DISP_PRIORITY))) {
+	    if (strcmp(s, "AUTO") == 0) {
+		info->DispPriority = 1;
+	    } else if (strcmp(s, "BIOS") == 0) {
+		info->DispPriority = 0;
+	    } else if (strcmp(s, "HIGH") == 0) {
+		info->DispPriority = 2;
+	    } else
+		info->DispPriority = 1;
 	}
-    }
+	
+	
+	if (!RADEONPreInitInt10(pScrn, &pInt10))
+	    goto fail;
+	
+	RADEONPostInt10Check(pScrn, int10_save);
 
-    if (!RADEONPreInitVRAM(pScrn))
-	goto fail;
+    	/* Save BIOS scratch registers */
+    	RADEONSaveBIOSRegisters(pScrn, info->SavedReg);
 
-    RADEONPreInitColorTiling(pScrn);
-
-    /* we really need an FB manager... */
-    if (pScrn->display->virtualX) {
-	crtc_max_X = pScrn->display->virtualX;
-	crtc_max_Y = pScrn->display->virtualY;
-	if (info->allowColorTiling) {
-	    if (crtc_max_X > info->MaxSurfaceWidth ||
-		crtc_max_Y > info->MaxLines) {
-		info->allowColorTiling = FALSE;
-		xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
-			   "Requested desktop size exceeds surface limts for tiling, ColorTiling disabled\n");
+	if (!RADEONPreInitBIOS(pScrn, pInt10))
+	    goto fail;
+#ifdef XF86DRI
+	/* PreInit DRI first of all since we need that for getting a proper
+	 * memory map
+	 */
+	info->directRenderingEnabled = RADEONPreInitDRI(pScrn);
+#endif
+	if (!info->directRenderingEnabled) {
+	    if (info->ChipFamily >= CHIP_FAMILY_R600) {
+		info->r600_shadow_fb = TRUE;
+		xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+			   "using shadow framebuffer\n");
+		if (!xf86LoadSubModule(pScrn, "shadow"))
+		    info->r600_shadow_fb = FALSE;
 	    }
 	}
-	if (crtc_max_X > 8192)
-	    crtc_max_X = 8192;
-	if (crtc_max_Y > 8192)
-	    crtc_max_Y = 8192;
-    } else {
-	/*
-	 * note that these aren't really the CRTC limits, they're just
-	 * heuristics until we have a better memory manager.
-	 */
-	if (pScrn->videoRam <= 16384) {
-	    crtc_max_X = 1600;
-	    crtc_max_Y = 1200;
-	} else if (IS_R300_VARIANT) {
-	    crtc_max_X = 2560;
-	    crtc_max_Y = 1200;
-	} else if (IS_AVIVO_VARIANT) {
-	    crtc_max_X = 2560;
-	    crtc_max_Y = 1600;
+	
+	if (!RADEONPreInitVRAM(pScrn))
+	    goto fail;
+	
+	RADEONPreInitColorTiling(pScrn);
+	
+	/* we really need an FB manager... */
+	if (pScrn->display->virtualX) {
+	    crtc_max_X = pScrn->display->virtualX;
+	    crtc_max_Y = pScrn->display->virtualY;
+	    if (info->allowColorTiling) {
+		if (crtc_max_X > info->MaxSurfaceWidth ||
+		    crtc_max_Y > info->MaxLines) {
+		    info->allowColorTiling = FALSE;
+		    xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+			       "Requested desktop size exceeds surface limts for tiling, ColorTiling disabled\n");
+		}
+	    }
+	    if (crtc_max_X > 8192)
+		crtc_max_X = 8192;
+	    if (crtc_max_Y > 8192)
+		crtc_max_Y = 8192;
 	} else {
-	    crtc_max_X = 2048;
-	    crtc_max_Y = 1200;
+	    /*
+	     * note that these aren't really the CRTC limits, they're just
+	     * heuristics until we have a better memory manager.
+	     */
+	    if (pScrn->videoRam <= 16384) {
+		crtc_max_X = 1600;
+		crtc_max_Y = 1200;
+	    } else if (IS_R300_VARIANT) {
+		crtc_max_X = 2560;
+		crtc_max_Y = 1200;
+	    } else if (IS_AVIVO_VARIANT) {
+		crtc_max_X = 2560;
+		crtc_max_Y = 1600;
+	    } else {
+		crtc_max_X = 2048;
+		crtc_max_Y = 1200;
 	}
-    }
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Max desktop size set to %dx%d\n",
-	       crtc_max_X, crtc_max_Y);
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-	       "For a larger or smaller max desktop size, add a Virtual line to your xorg.conf\n");
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-	       "If you are having trouble with 3D, "
-	       "reduce the desktop size by adjusting the Virtual line to your xorg.conf\n");
-
+	}
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Max desktop size set to %dx%d\n",
+		   crtc_max_X, crtc_max_Y);
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		   "For a larger or smaller max desktop size, add a Virtual line to your xorg.conf\n");
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		   "If you are having trouble with 3D, "
+		   "reduce the desktop size by adjusting the Virtual line to your xorg.conf\n");
+	
     /*xf86CrtcSetSizeRange (pScrn, 320, 200, info->MaxSurfaceWidth, info->MaxLines);*/
-    xf86CrtcSetSizeRange (pScrn, 320, 200, crtc_max_X, crtc_max_Y);
+	xf86CrtcSetSizeRange (pScrn, 320, 200, crtc_max_X, crtc_max_Y);
+	
+	RADEONPreInitDDC(pScrn);
 
-    RADEONPreInitDDC(pScrn);
-
-    if (!RADEONPreInitControllers(pScrn))
-       goto fail;
+	if (!RADEONPreInitControllers(pScrn))
+	    goto fail;
 
 
-    ErrorF("before xf86InitialConfiguration\n");
-
-    if (!xf86InitialConfiguration (pScrn, FALSE))
-   {
-      xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "No valid modes.\n");
-      goto fail;
-   }
-
-    /* fix up cloning on rn50 cards
-     * since they only have one crtc sometimes the xserver doesn't assign
-     * a crtc to one of the outputs even though both outputs have common modes
-     * which results in only one monitor being enabled.  Assign a crtc here so
-     * that both outputs light up.
-     */
-    if (info->ChipFamily == CHIP_FAMILY_RV100 && !pRADEONEnt->HasCRTC2) {
-	int i;
-
-	for (i = 0; i < xf86_config->num_output; i++) {
-	    xf86OutputPtr output = xf86_config->output[i];
-
-	    /* XXX: double check crtc mode */
-	    if ((output->probed_modes != NULL) && (output->crtc == NULL))
-		output->crtc = xf86_config->crtc[0];
+	ErrorF("before xf86InitialConfiguration\n");
+	
+	if (!xf86InitialConfiguration (pScrn, FALSE))
+	{
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "No valid modes.\n");
+		goto fail;
 	}
-    }
+	
+	/* fix up cloning on rn50 cards
+	 * since they only have one crtc sometimes the xserver doesn't assign
+	 * a crtc to one of the outputs even though both outputs have common modes
+	 * which results in only one monitor being enabled.  Assign a crtc here so
+	 * that both outputs light up.
+	 */
+	if (info->ChipFamily == CHIP_FAMILY_RV100 && !pRADEONEnt->HasCRTC2) {
+	    int i;
 
-    ErrorF("after xf86InitialConfiguration\n");
+	    for (i = 0; i < xf86_config->num_output; i++) {
+		xf86OutputPtr output = xf86_config->output[i];
+
+		/* XXX: double check crtc mode */
+		if ((output->probed_modes != NULL) && (output->crtc == NULL))
+		    output->crtc = xf86_config->crtc[0];
+	    }
+	}
+	ErrorF("after xf86InitialConfiguration\n");
+
+    } else {
+#ifdef XF86DRM_MODE
+	char *bus_id;
+	bus_id = DRICreatePCIBusID(info->PciInfo);
+	if (drmmode_pre_init(pScrn, &info->drmmode, bus_id, "radeon", pScrn->bitsPerPixel / 8) == FALSE) {
+	    xfree(bus_id);
+	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Kernel modesetting setup failed\n");
+	    goto fail;
+	}
+
+	info->drmmode.create_new_fb = radeon_create_new_fb;
+
+	info->drmFD = info->drmmode.fd;
+	xfree(bus_id);
+	 
+        {
+	    struct drm_radeon_gem_info mminfo;
+
+	    if (!drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_INFO, &mminfo, sizeof(mminfo)))
+	    {
+		    info->mm.vram_start = mminfo.vram_start;
+		    info->mm.vram_size = mminfo.vram_visible;
+		    info->mm.gart_start = mminfo.vram_start;
+		    info->mm.gart_size = mminfo.gart_size;
+		    ErrorF("initing %llx %llx %llx %llx\n", mminfo.gart_start,
+			   mminfo.gart_size, mminfo.vram_start, mminfo.vram_size);
+	    }
+        }
+	info->useEXA = TRUE;
+	info->drm_mm = TRUE;
+	//	info->directRenderingDisabled = FALSE;
+    }
+#endif
 
     RADEONSetPitch(pScrn);
 
-   /* Set display resolution */
-   xf86SetDpi(pScrn, 0, 0);
+    /* Set display resolution */
+    xf86SetDpi(pScrn, 0, 0);
 
 	/* Get ScreenInit function */
     if (!xf86LoadSubModule(pScrn, "fb")) return FALSE;
@@ -3089,10 +3161,12 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 	if (!RADEONPreInitXv(pScrn))                 goto fail;
     }
 
-    if (!xf86RandR12PreInit (pScrn))
-    {
-      xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "RandR initialization failure\n");
-      goto fail;
+    if (!info->drm_mode_setting) {
+	if (!xf86RandR12PreInit (pScrn))
+	{
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "RandR initialization failure\n");
+		goto fail;
+	}
     }
 
     if (pScrn->modes == NULL) {
@@ -3353,58 +3427,61 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 		   "RADEONScreenInit %lx %ld\n",
 		   pScrn->memPhysBase, pScrn->fbOffset);
 #endif
-    if (!RADEONMapMem(pScrn)) return FALSE;
+
+    if (!info->drm_mode_setting) {
+	if (!RADEONMapMem(pScrn)) return FALSE;
 
 #ifdef XF86DRI
-    info->dri->fbX = 0;
-    info->dri->fbY = 0;
+	info->dri->fbX = 0;
+	info->dri->fbY = 0;
 #endif
+	
+	info->PaletteSavedOnVT = FALSE;
 
-    info->PaletteSavedOnVT = FALSE;
+	info->crtc_on = FALSE;
+	info->crtc2_on = FALSE;
 
-    info->crtc_on = FALSE;
-    info->crtc2_on = FALSE;
+        /* save the real front buffer size
+         * it changes with randr, rotation, etc.
+         */
+        info->virtualX = pScrn->virtualX;
+        info->virtualY = pScrn->virtualY;
 
-    /* save the real front buffer size
-     * it changes with randr, rotation, etc.
-     */
-    info->virtualX = pScrn->virtualX;
-    info->virtualY = pScrn->virtualY;
+	RADEONSave(pScrn);
 
-    RADEONSave(pScrn);
+	/* set initial bios scratch reg state */
+	RADEONInitBIOSRegisters(pScrn);
 
-    /* set initial bios scratch reg state */
-    RADEONInitBIOSRegisters(pScrn);
+	/* blank the outputs/crtcs */
+	RADEONBlank(pScrn);
 
-    /* blank the outputs/crtcs */
-    RADEONBlank(pScrn);
-
-    if (info->IsMobility && !IS_AVIVO_VARIANT) {
-	if (xf86ReturnOptValBool(info->Options, OPTION_DYNAMIC_CLOCKS, FALSE)) {
-	    RADEONSetDynamicClock(pScrn, 1);
-	} else {
-	    RADEONSetDynamicClock(pScrn, 0);
+	if (info->IsMobility && !IS_AVIVO_VARIANT) {
+	    if (xf86ReturnOptValBool(info->Options, OPTION_DYNAMIC_CLOCKS, FALSE)) {
+		RADEONSetDynamicClock(pScrn, 1);
+	    } else {
+		RADEONSetDynamicClock(pScrn, 0);
+	    }
+	} else if (IS_AVIVO_VARIANT) {
+	    if (xf86ReturnOptValBool(info->Options, OPTION_DYNAMIC_CLOCKS, FALSE)) {
+		atombios_static_pwrmgt_setup(pScrn, 1);
+		atombios_dyn_clk_setup(pScrn, 1);
+	    }
 	}
-    } else if (IS_AVIVO_VARIANT) {
-	if (xf86ReturnOptValBool(info->Options, OPTION_DYNAMIC_CLOCKS, FALSE)) {
-	    atombios_static_pwrmgt_setup(pScrn, 1);
-	    atombios_dyn_clk_setup(pScrn, 1);
+	
+	if (IS_R300_VARIANT || IS_RV100_VARIANT)
+	    RADEONForceSomeClocks(pScrn);
+
+	if (info->allowColorTiling && (pScrn->virtualX > info->MaxSurfaceWidth)) {
+	    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		       "Color tiling not supported with virtual x resolutions larger than %d, disabling\n",
+		       info->MaxSurfaceWidth);
+	    info->allowColorTiling = FALSE;
 	}
+	if (info->allowColorTiling) {
+	    info->tilingEnabled = (pScrn->currentMode->Flags & (V_DBLSCAN | V_INTERLACE)) ? FALSE : TRUE;
+	}
+	
     }
-
-    if (IS_R300_VARIANT || IS_RV100_VARIANT)
-	RADEONForceSomeClocks(pScrn);
-
-    if (info->allowColorTiling && (pScrn->virtualX > info->MaxSurfaceWidth)) {
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		   "Color tiling not supported with virtual x resolutions larger than %d, disabling\n",
-		    info->MaxSurfaceWidth);
-	info->allowColorTiling = FALSE;
-    }
-    if (info->allowColorTiling) {
-        info->tilingEnabled = (pScrn->currentMode->Flags & (V_DBLSCAN | V_INTERLACE)) ? FALSE : TRUE;
-    }
-
     /* Visual setup */
     miClearVisualTypes();
     if (!miSetVisualTypes(pScrn->depth,
@@ -3438,19 +3515,21 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
     hasDRI = info->directRenderingEnabled;
 #endif /* XF86DRI */
 
-    /* Initialize the memory map, this basically calculates the values
-     * we'll use later on for MC_FB_LOCATION & MC_AGP_LOCATION
-     */
-    RADEONInitMemoryMap(pScrn);
+    if (!info->drm_mode_setting) {
+	/* Initialize the memory map, this basically calculates the values
+	 * we'll use later on for MC_FB_LOCATION & MC_AGP_LOCATION
+	 */
+	RADEONInitMemoryMap(pScrn);
 
-    /* empty the surfaces */
-    if (info->ChipFamily < CHIP_FAMILY_R600) {
-	unsigned char *RADEONMMIO = info->MMIO;
-	unsigned int j;
-	for (j = 0; j < 8; j++) {
-	    OUTREG(RADEON_SURFACE0_INFO + 16 * j, 0);
-	    OUTREG(RADEON_SURFACE0_LOWER_BOUND + 16 * j, 0);
-	    OUTREG(RADEON_SURFACE0_UPPER_BOUND + 16 * j, 0);
+	/* empty the surfaces */
+	if (info->ChipFamily < CHIP_FAMILY_R600) {
+	    unsigned char *RADEONMMIO = info->MMIO;
+	    unsigned int j;
+	    for (j = 0; j < 8; j++) {
+		OUTREG(RADEON_SURFACE0_INFO + 16 * j, 0);
+		OUTREG(RADEON_SURFACE0_LOWER_BOUND + 16 * j, 0);
+		OUTREG(RADEON_SURFACE0_UPPER_BOUND + 16 * j, 0);
+	    }
 	}
     }
 
@@ -5804,10 +5883,12 @@ void RADEONLeaveVT(int scrnIndex, int flags)
 
     xf86_hide_cursors (pScrn);
 
-    RADEONRestore(pScrn);
+    if (!info->drm_mode_setting) {
+	RADEONRestore(pScrn);
 
-    for (i = 0; i < config->num_crtc; i++)
-	radeon_crtc_modeset_ioctl(config->crtc[i], FALSE);
+	for (i = 0; i < config->num_crtc; i++)
+	    radeon_crtc_modeset_ioctl(config->crtc[i], FALSE);
+    }
 
     xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
 		   "Ok, leaving now...\n");
@@ -5861,7 +5942,8 @@ static Bool RADEONCloseScreen(int scrnIndex, ScreenPtr pScreen)
 #endif /* USE_XAA */
 
     if (pScrn->vtSema) {
-	RADEONRestore(pScrn);
+        if (!info->drm_mode_setting)
+	    RADEONRestore(pScrn);
     }
 
     xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
