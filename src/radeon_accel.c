@@ -615,6 +615,84 @@ int RADEONCPStop(ScrnInfoPtr pScrn, RADEONInfoPtr info)
     }
 }
 
+drmBufPtr RADEONGEMGetBuffer(ScrnInfoPtr pScrn)
+{
+    RADEONInfoPtr  info = RADEONPTR(pScrn);
+    struct drm_radeon_gem_create args;
+    int ret;
+
+    info->mm.gem_ib_memory = radeon_allocate_memory(pScrn, RADEON_POOL_GART, RADEON_BUFFER_SIZE,
+						 0, 0, "Accel IB");
+
+    if (!info->mm.gem_ib_memory) {
+	ErrorF("Unable to map allocate IB\n");
+	return NULL;
+    }
+
+    ret = radeon_map_memory(pScrn, info->mm.gem_ib_memory);
+    if (ret) {
+	ErrorF("Unable to map IB\n");
+	radeon_free_memory(pScrn, info->mm.gem_ib_memory);
+	return NULL;
+    }
+
+    info->cp->ib_gem_fake.used = 0;
+    info->cp->ib_gem_fake.total = 0;
+    info->cp->ib_gem_fake.address = (void *)(unsigned long)info->mm.gem_ib_memory->bus_addr;
+    
+    return &info->cp->ib_gem_fake;
+}
+
+void RADEONGEMFlushIndirect(ScrnInfoPtr pScrn, int discard)
+{
+    RADEONInfoPtr  info = RADEONPTR(pScrn);
+    struct drm_radeon_gem_indirect args;
+    struct drm_radeon_gem_set_domain dom_args;
+
+    if (RADEON_VERBOSE) {
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Flushing IB\n");
+    }
+
+    args.handle = info->mm.gem_ib_memory->kernel_bo_handle;
+    args.used = info->indirectBuffer->used;
+
+
+    drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_INDIRECT,
+			&args, sizeof(args));
+
+    /* for now just wait for the buffer to come around again */
+
+    dom_args.handle = info->mm.gem_ib_memory->kernel_bo_handle;
+    dom_args.read_domains = RADEON_GEM_DOMAIN_CPU;
+    dom_args.write_domain = 0;
+
+    drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_SET_DOMAIN,
+			&dom_args, sizeof(dom_args));
+
+    info->indirectBuffer->used = 0;
+}
+
+void RADEONGEMReleaseIndirect(ScrnInfoPtr pScrn)
+{
+    RADEONInfoPtr  info = RADEONPTR(pScrn);
+    struct drm_radeon_gem_indirect args;
+    struct drm_gem_close close_args;
+    if (RADEON_VERBOSE) {
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Releasing IB\n");
+    }
+
+    args.handle = info->mm.gem_ib_memory->kernel_bo_handle;
+    args.used = info->indirectBuffer->used;
+
+
+    drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_INDIRECT,
+			&args, sizeof(args));
+
+    radeon_free_memory(pScrn, info->mm.gem_ib_memory);
+    info->mm.gem_ib_memory = NULL;
+    info->indirectBuffer = NULL;
+}
+
 /* Get an indirect buffer for the CP 2D acceleration commands  */
 drmBufPtr RADEONCPGetBuffer(ScrnInfoPtr pScrn)
 {
@@ -625,6 +703,9 @@ drmBufPtr RADEONCPGetBuffer(ScrnInfoPtr pScrn)
     int            size = 0;
     int            i = 0;
     int            ret;
+    
+    if (info->drm_mm)
+	return RADEONGEMGetBuffer(pScrn);
 
 #if 0
     /* FIXME: pScrn->pScreen has not been initialized when this is first
@@ -691,6 +772,11 @@ void RADEONCPFlushIndirect(ScrnInfoPtr pScrn, int discard)
     int                start  = info->cp->indirectStart;
     drm_radeon_indirect_t  indirect;
 
+    if (info->drm_mm) {
+	RADEONGEMFlushIndirect(pScrn, discard);
+	return;
+    }
+	
     if (!buffer) return;
     if (start == buffer->used && !discard) return;
 
@@ -1016,7 +1102,7 @@ Bool RADEONAccelInit(ScreenPtr pScreen)
 #ifdef USE_EXA
     if (info->useEXA) {
 # ifdef XF86DRI
-	if (info->directRenderingEnabled) {
+	if (info->directRenderingEnabled || info->drm_mode_setting) {
 	    if (info->ChipFamily >= CHIP_FAMILY_R600) {
 		if (!R600DrawInit(pScreen))
 		    return FALSE;
@@ -1049,7 +1135,7 @@ Bool RADEONAccelInit(ScreenPtr pScreen)
 	}
 
 #ifdef XF86DRI
-	if (info->directRenderingEnabled)
+	if (info->directRenderingEnabled || info->drm_mode_setting)
 	    RADEONAccelInitCP(pScreen, a);
 	else
 #endif /* XF86DRI */

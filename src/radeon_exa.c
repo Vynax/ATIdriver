@@ -188,7 +188,12 @@ Bool RADEONGetPixmapOffsetPitch(PixmapPtr pPix, uint32_t *pitch_offset)
 		bpp = 8;
 
 	offset = exaGetPixmapOffset(pPix);
-	offset += info->fbLocation + pScrn->fbOffset;
+
+	if (info->drm_mm)
+	  offset += info->mm.front_buffer->offset + info->fbLocation;
+	else
+	  offset += info->fbLocation + pScrn->fbOffset;
+	ErrorF("offset is %x\n", offset);
 	pitch = exaGetPixmapPitch(pPix);
 
 	return RADEONGetOffsetPitch(pPix, bpp, pitch_offset, offset, pitch);

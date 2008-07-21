@@ -443,6 +443,9 @@ struct radeon_cp {
     drmBufPtr         indirectBuffer;
     int               indirectStart;
 
+    drmBuf         ib_gem_fake;
+    void *ib_ptr;
+
     /* Debugging info for BEGIN_RING/ADVANCE_RING pairs. */
     int               dma_begin_count;
     char              *dma_debug_func;
@@ -534,7 +537,6 @@ struct radeon_dri {
     drmAddress        gartTex;           /* Map */
     int               log2GARTTexGran;
 
-    /* DRI screen private data */
     int               fbX;
     int               fbY;
     int               backX;
@@ -909,12 +911,17 @@ typedef struct {
       struct radeon_memory *back_buffer;
       struct radeon_memory *depth_buffer;
 
+#if 0
       struct radeon_memory *exa_buffer;
+#endif
       struct radeon_memory *texture_buffer;
 
       struct radeon_memory *dma_buffer;
       struct radeon_memory *gart_texture_buffer;
       struct radeon_memory *cursor[2];
+
+      /* indirect buffer for accel */
+      struct radeon_memory *gem_ib_memory;
       
     } mm;
 
@@ -1258,7 +1265,7 @@ do {									\
 	(RADEON_CP_PACKET3 | (pkt) | ((n) << 16))
 
 
-#define RADEON_VERBOSE	0
+#define RADEON_VERBOSE	1
 
 #define RING_LOCALS	uint32_t *__head = NULL; int __expected; int __count = 0
 
@@ -1484,5 +1491,6 @@ static __inline__ int radeon_timedout(const struct timeval *endtime)
 }
 
 uint32_t radeon_create_new_fb(ScrnInfoPtr pScrn, int width, int height, int *pitch);
-
+int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
+void radeon_free_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
 #endif /* _RADEON_H_ */

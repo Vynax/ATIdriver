@@ -77,7 +77,8 @@ FUNC_NAME(RADEONSync)(ScreenPtr pScreen, int marker)
     TRACE;
 
     if (info->accel_state->exaMarkerSynced != marker) {
-	FUNC_NAME(RADEONWaitForIdle)(pScrn);
+	if (!info->drm_mode_setting)
+	    FUNC_NAME(RADEONWaitForIdle)(pScrn);
 	info->accel_state->exaMarkerSynced = marker;
     }
 
@@ -92,8 +93,6 @@ FUNC_NAME(RADEONPrepareSolid)(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
     ACCEL_PREAMBLE();
 
     TRACE;
-
-    RADEON_FALLBACK("ASS");
 
     if (pPix->drawable.bitsPerPixel == 24)
 	RADEON_FALLBACK(("24bpp unsupported\n"));
@@ -279,7 +278,11 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
     if (bpp < 8)
 	return FALSE;
 
-    if (info->directRenderingEnabled &&
+    if (info->drm_mode_setting)
+	    dst = (void *)info->mm.front_buffer->bus_addr + exaGetPixmapOffset(pDst);
+
+#ifdef ACCEL_CP
+    if ((info->directRenderingEnabled || info->drm_mode_setting) &&
 	RADEONGetPixmapOffsetPitch(pDst, &dst_pitch_off)) {
 	uint8_t *buf;
 	int cpp = bpp / 8;
@@ -497,7 +500,7 @@ Bool FUNC_NAME(RADEONDrawInit)(ScreenPtr pScreen)
 	else if (IS_R300_3D || IS_R500_3D) {
 	    if ((info->ChipFamily < CHIP_FAMILY_RS400)
 #ifdef XF86DRI
-		|| (info->directRenderingEnabled)
+		|| (info->directRenderingEnabled || info->drm_mode_setting)
 #endif
 		) {
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Render acceleration "
