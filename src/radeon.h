@@ -1265,7 +1265,7 @@ do {									\
 	(RADEON_CP_PACKET3 | (pkt) | ((n) << 16))
 
 
-#define RADEON_VERBOSE	1
+#define RADEON_VERBOSE	0
 
 #define RING_LOCALS	uint32_t *__head = NULL; int __expected; int __count = 0
 
@@ -1493,4 +1493,5 @@ static __inline__ int radeon_timedout(const struct timeval *endtime)
 uint32_t radeon_create_new_fb(ScrnInfoPtr pScrn, int width, int height, int *pitch);
 int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
 void radeon_free_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
+Bool radeon_bind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
 #endif /* _RADEON_H_ */
