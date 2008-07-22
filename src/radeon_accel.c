@@ -433,8 +433,8 @@ void RADEONEngineInit(ScrnInfoPtr pScrn)
 		   info->CurrentLayout.bitsPerPixel);
 
 #ifdef XF86DRI
-    if (info->directRenderingEnabled && (IS_R300_3D || IS_R500_3D)) {
-	drm_radeon_getparam_t np;
+    if ((info->directRenderingEnabled || info->drm_mode_setting) && (IS_R300_3D || IS_R500_3D)) {
+        drm_radeon_getparam_t np;
 	int num_pipes;
 
 	memset(&np, 0, sizeof(np));
@@ -629,6 +629,7 @@ drmBufPtr RADEONGEMGetBuffer(ScrnInfoPtr pScrn)
 	return NULL;
     }
 
+    radeon_bind_memory(pScrn, info->mm.gem_ib_memory);
     ret = radeon_map_memory(pScrn, info->mm.gem_ib_memory);
     if (ret) {
 	ErrorF("Unable to map IB\n");
@@ -669,6 +670,7 @@ void RADEONGEMFlushIndirect(ScrnInfoPtr pScrn, int discard)
     drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_SET_DOMAIN,
 			&dom_args, sizeof(dom_args));
 
+    info->indirectStart = 0;
     info->indirectBuffer->used = 0;
 }
 
@@ -683,7 +685,6 @@ void RADEONGEMReleaseIndirect(ScrnInfoPtr pScrn)
 
     args.handle = info->mm.gem_ib_memory->kernel_bo_handle;
     args.used = info->indirectBuffer->used;
-
 
     drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_INDIRECT,
 			&args, sizeof(args));
@@ -772,13 +773,13 @@ void RADEONCPFlushIndirect(ScrnInfoPtr pScrn, int discard)
     int                start  = info->cp->indirectStart;
     drm_radeon_indirect_t  indirect;
 
+    if (!buffer) return;
+    if (start == buffer->used && !discard) return;
+
     if (info->drm_mm) {
 	RADEONGEMFlushIndirect(pScrn, discard);
 	return;
     }
-	
-    if (!buffer) return;
-    if (start == buffer->used && !discard) return;
 
     if (RADEON_VERBOSE) {
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Flushing buffer %d\n",

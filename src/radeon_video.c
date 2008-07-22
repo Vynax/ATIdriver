@@ -299,7 +299,7 @@ void RADEONInitVideo(ScreenPtr pScreen)
 
     if ((info->ChipFamily < CHIP_FAMILY_RS400)
 #ifdef XF86DRI
-	|| (info->directRenderingEnabled)
+	|| (info->directRenderingEnabled || info->drm_mode_setting)
 #endif
 	) {
 	texturedAdaptor = RADEONSetupImageTexturedVideo(pScreen);

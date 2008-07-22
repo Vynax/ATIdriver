@@ -3130,6 +3130,7 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 	    if (!drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_INFO, &mminfo, sizeof(mminfo)))
 	    {
 		    info->mm.vram_start = mminfo.vram_start;
+		    info->fbLocation = mminfo.vram_start;
 		    info->mm.vram_size = mminfo.vram_visible;
 		    info->mm.gart_start = mminfo.gart_start;
 		    info->mm.gart_size = mminfo.gart_size;

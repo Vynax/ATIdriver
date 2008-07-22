@@ -587,9 +587,13 @@ RADEONPutImageTextured(ScrnInfoPtr pScrn,
     pPriv->h = height;
 
 #ifdef XF86DRI
+<<<<<<< HEAD:src/radeon_textured_video.c
     if (IS_R600_3D)
 	R600DisplayTexturedVideo(pScrn, pPriv);
     else if (info->directRenderingEnabled)
+=======
+    if (info->directRenderingEnabled || info->drm_mode_setting)
+>>>>>>> radeon: make at least the EXA stipple work..:src/radeon_textured_video.c
 	RADEONDisplayTexturedVideoCP(pScrn, pPriv);
     else
 #endif

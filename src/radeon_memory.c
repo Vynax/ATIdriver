@@ -4,7 +4,7 @@
 #include "radeon.h"
 #include "radeon_drm.h"
 
-static Bool
+Bool
 radeon_bind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 {
 	RADEONInfoPtr info = RADEONPTR(pScrn);	
