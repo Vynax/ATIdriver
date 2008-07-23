@@ -3129,13 +3129,29 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 
 	    if (!drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_INFO, &mminfo, sizeof(mminfo)))
 	    {
-		    info->mm.vram_start = mminfo.vram_start;
-		    info->fbLocation = mminfo.vram_start;
-		    info->mm.vram_size = mminfo.vram_visible;
-		    info->mm.gart_start = mminfo.gart_start;
-		    info->mm.gart_size = mminfo.gart_size;
-		    ErrorF("initing %llx %llx %llx %llx %llx\n", mminfo.gart_start,
-			   mminfo.gart_size, mminfo.vram_start, mminfo.vram_size, mminfo.vram_visible);
+		info->mm.vram_start = mminfo.vram_start;
+		info->mm.vram_size = mminfo.vram_visible;
+		info->mm.gart_start = mminfo.gart_start;
+		info->mm.gart_size = mminfo.gart_size;
+		ErrorF("initing %llx %llx %llx %llx %llx\n", mminfo.gart_start,
+		       mminfo.gart_size, mminfo.vram_start, mminfo.vram_size, mminfo.vram_visible);
+	    }
+	    {
+		drmRadeonGetParam gp;
+		int value;
+
+		memset(&gp, 0, sizeof(gp));
+		gp.param = RADEON_PARAM_FB_LOCATION;
+		gp.value = &value;
+
+		if (drmCommandWriteRead(info->drmFD, DRM_RADEON_GETPARAM, &gp,
+					sizeof(gp)) < 0) {
+		    goto fail;
+		}
+		if (info->ChipFamily >= CHIP_FAMILY_R600)
+	    		info->fbLocation = (value & 0xffff) << 24; 
+		else
+			info->fbLocation = (value & 0xffff) << 16;
 	    }
         }
 	info->useEXA = TRUE;

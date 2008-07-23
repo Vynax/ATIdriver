@@ -356,15 +356,6 @@ Bool radeon_setup_gart_mem(ScreenPtr pScreen)
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     RADEONInfoPtr info = RADEONPTR(pScrn);
 
-    info->mm.dma_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_GART,
-						 info->bufMapSize,
-						 0, 1, "DMA buffers");
-
-    if (!info->mm.dma_buffer) {
-	return FALSE;
-    }
-
-    radeon_bind_memory(pScrn, info->mm.dma_buffer);
 
     info->mm.gart_texture_buffer =
 	radeon_allocate_memory(pScrn, RADEON_POOL_GART,
