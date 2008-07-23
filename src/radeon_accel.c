@@ -1158,11 +1158,12 @@ void RADEONInit3DEngine(ScrnInfoPtr pScrn)
     RADEONInfoPtr info = RADEONPTR (pScrn);
 
 #ifdef XF86DRI
-    if (info->directRenderingEnabled) {
-	drm_radeon_sarea_t *pSAREAPriv;
+    if (info->directRenderingEnabled || info->drm_mode_setting) {
+	if (info->directRenderingEnabled) {
+	    drm_radeon_sarea_t *pSAREAPriv;
 
-	pSAREAPriv = DRIGetSAREAPrivate(pScrn->pScreen);
-	pSAREAPriv->ctx_owner = DRIGetContext(pScrn->pScreen);
+	    pSAREAPriv = DRIGetSAREAPrivate(pScrn->pScreen);
+	    pSAREAPriv->ctx_owner = DRIGetContext(pScrn->pScreen);
 	RADEONInit3DEngineCP(pScrn);
     } else
 #endif
