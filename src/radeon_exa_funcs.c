@@ -92,7 +92,6 @@ FUNC_NAME(RADEONPrepareSolid)(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
     uint32_t datatype, dst_pitch_offset;
     ACCEL_PREAMBLE();
 
-    FALLBACK("ass");
     TRACE;
 
     if (pPix->drawable.bitsPerPixel == 24)
@@ -366,6 +365,10 @@ RADEONDownloadFromScreenCP(PixmapPtr pSrc, int x, int y, int w, int h,
 
     TRACE;
 
+    if (info->drm_mode_setting)
+      src = (void *)info->mm.front_buffer->bus_addr + exaGetPixmapOffset(pSrc);
+
+#ifdef ACCEL_CP
     /*
      * Try to accelerate download. Use an indirect buffer as scratch space,
      * blitting the bits to one half while copying them out of the other one and
