@@ -1,6 +1,7 @@
 
 #include <errno.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
 #include "radeon.h"
 #include "radeon_drm.h"
 
@@ -77,6 +78,9 @@ void radeon_free_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 	if (mem == NULL)
 		return;
 
+	if (mem->bus_addr)
+	    radeon_unmap_memory(pScrn, mem);
+	    
 	radeon_unbind_memory(pScrn, mem);
 
 	if (mem->kernel_bo_handle) {
@@ -198,6 +202,12 @@ int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 	mem->bus_addr = args.addr_ptr;
     ErrorF("Mapped %s size %d at %d %p\n", mem->name, mem->size, mem->offset, (void *)(unsigned long)mem->bus_addr);
     return ret;
+}
+
+void radeon_unmap_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
+{
+    munmap((void *)(unsigned long)mem->bus_addr, mem->size);
+    mem->bus_addr = NULL;
 }
 
 /* Okay radeon
