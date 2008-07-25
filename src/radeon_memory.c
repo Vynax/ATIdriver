@@ -123,7 +123,7 @@ struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int si
     }
 
     mem->size = size;
-    mem->pool = 1;
+    mem->pool = pool;
     mem->next = mem->prev = NULL;
 
     args.size = size;
