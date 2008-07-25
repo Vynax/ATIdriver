@@ -3778,12 +3778,14 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 		       "DRI Finishing init !\n");
 	info->directRenderingEnabled = RADEONDRIFinishScreenInit(pScreen);
     }
-    if (info->directRenderingEnabled && !info->drm_mode_setting) {
+    if (info->directRenderingEnabled) {
 	/* DRI final init might have changed the memory map, we need to adjust
 	 * our local image to make sure we restore them properly on mode
 	 * changes or VT switches
 	 */
-	RADEONAdjustMemMapRegisters(pScrn, info->ModeReg);
+	if (!info->drm_mode_setting) {
+	    RADEONAdjustMemMapRegisters(pScrn, info->ModeReg);
+	}
 
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Direct rendering enabled\n");
 
