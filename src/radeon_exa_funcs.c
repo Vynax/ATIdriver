@@ -77,8 +77,7 @@ FUNC_NAME(RADEONSync)(ScreenPtr pScreen, int marker)
     TRACE;
 
     if (info->accel_state->exaMarkerSynced != marker) {
-	if (!info->drm_mode_setting)
-	    FUNC_NAME(RADEONWaitForIdle)(pScrn);
+        FUNC_NAME(RADEONWaitForIdle)(pScrn);
 	info->accel_state->exaMarkerSynced = marker;
     }
 
