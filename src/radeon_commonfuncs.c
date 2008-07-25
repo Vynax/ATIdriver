@@ -712,7 +712,7 @@ void FUNC_NAME(RADEONWaitForIdle)(ScrnInfoPtr pScrn)
 
 #ifdef ACCEL_CP
     /* Make sure the CP is idle first */
-    if (info->cp->CPStarted) {
+    if (info->cp->CPStarted || info->drm_mode_setting) {
 	int  ret;
 
 	FLUSH_RING();

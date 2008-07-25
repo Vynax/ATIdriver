@@ -373,6 +373,9 @@ void RADEONEngineRestore(ScrnInfoPtr pScrn)
     RADEONInfoPtr  info       = RADEONPTR(pScrn);
     unsigned char *RADEONMMIO = info->MMIO;
 
+    if (info->drm_mode_setting)
+      return;
+
     xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
 		   "EngineRestore (%d/%d)\n",
 		   info->CurrentLayout.pixel_code,
@@ -683,11 +686,9 @@ void RADEONGEMReleaseIndirect(ScrnInfoPtr pScrn)
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Releasing IB\n");
     }
 
-    args.handle = info->mm.gem_ib_memory->kernel_bo_handle;
-    args.used = info->indirectBuffer->used;
+    if (!info->indirectBuffer) return;
 
-    drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_INDIRECT,
-			&args, sizeof(args));
+    RADEONGEMFlushIndirect(pScrn, 0);
 
     radeon_free_memory(pScrn, info->mm.gem_ib_memory);
     info->mm.gem_ib_memory = NULL;
@@ -839,10 +840,16 @@ void RADEONCPReleaseIndirect(ScrnInfoPtr pScrn)
 	}
     }
 
+    if (info->drm_mm) {
+      RADEONGEMReleaseIndirect(pScrn);
+      return;
+    }
+
     info->cp->indirectBuffer = NULL;
     info->cp->indirectStart  = 0;
 
     if (!buffer) return;
+      
 
     if (RADEON_VERBOSE) {
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Releasing buffer %d\n",

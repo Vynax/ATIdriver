@@ -3156,6 +3156,7 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
         }
 	info->useEXA = TRUE;
 	info->drm_mm = TRUE;
+	info->directRenderingEnabled = TRUE;
 	//	info->directRenderingDisabled = FALSE;
     }
 #endif
@@ -3585,6 +3586,9 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 	    info->accelDFS = xf86ReturnOptValBool(info->Options, OPTION_ACCEL_DFS,
 						  info->cardType != CARD_AGP);
 
+	    if (info->drm_mm)
+	      info->accelDFS = FALSE;
+
 	    /* Reserve approx. half of offscreen memory for local textures by
 	     * default, can be overridden with Option "FBTexPercent".
 	     * Round down to a whole number of texture regions.
@@ -3648,7 +3652,7 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 			    info->CurrentLayout.pixel_bytes);
 	int  maxy        = info->FbMapSize / width_bytes;
 
-	if (maxy <= pScrn->virtualY * 3) {
+	if (maxy <= pScrn->virtualY * 3 && !info->drm_mm) {
 	    xf86DrvMsg(scrnIndex, X_ERROR,
 		       "Static buffer allocation failed.  Disabling DRI.\n");
 	    xf86DrvMsg(scrnIndex, X_ERROR,
@@ -3756,8 +3760,8 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 
     /* DRI finalisation */
 #ifdef XF86DRI
-    if (info->directRenderingEnabled && info->cardType==CARD_PCIE &&
-        info->dri->pKernelDRMVersion->version_minor >= 19 && !info->drm_mm)
+    if (!info->drm_mm && info->directRenderingEnabled && info->cardType==CARD_PCIE &&
+        info->dri->pKernelDRMVersion->version_minor >= 19)
     {
       if (RADEONDRISetParam(pScrn, RADEON_SETPARAM_PCIGART_LOCATION, info->dri->pciGartOffset) < 0)
 	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
@@ -3774,7 +3778,7 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 		       "DRI Finishing init !\n");
 	info->directRenderingEnabled = RADEONDRIFinishScreenInit(pScreen);
     }
-    if (info->directRenderingEnabled) {
+    if (info->directRenderingEnabled && !info->drm_mode_setting) {
 	/* DRI final init might have changed the memory map, we need to adjust
 	 * our local image to make sure we restore them properly on mode
 	 * changes or VT switches

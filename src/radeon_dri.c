@@ -718,25 +718,35 @@ static void RADEONDRIInitGARTValues(RADEONInfoPtr info)
 
     info->dri->gartOffset = 0;
 
-				/* Initialize the CP ring buffer data */
-    info->dri->ringStart       = info->dri->gartOffset;
-    info->dri->ringMapSize     = info->dri->ringSize*1024*1024 + radeon_drm_page_size;
-    info->dri->ringSizeLog2QW  = RADEONMinBits(info->dri->ringSize*1024*1024/8)-1;
+    if (!info->drm_mm) {
+	/* Initialize the CP ring buffer data */
+	info->dri->ringStart       = info->dri->gartOffset;
+	info->dri->ringMapSize     = info->dri->ringSize*1024*1024 + radeon_drm_page_size;
+	info->dri->ringSizeLog2QW  = RADEONMinBits(info->dri->ringSize*1024*1024/8)-1;
 
-    info->dri->ringReadOffset  = info->dri->ringStart + info->dri->ringMapSize;
-    info->dri->ringReadMapSize = radeon_drm_page_size;
+	info->dri->ringReadOffset  = info->dri->ringStart + info->dri->ringMapSize;
+	info->dri->ringReadMapSize = radeon_drm_page_size;
 
-				/* Reserve space for vertex/indirect buffers */
-    info->dri->bufStart        = info->dri->ringReadOffset + info->dri->ringReadMapSize;
-    info->dri->bufMapSize      = info->dri->bufSize*1024*1024;
+	/* Reserve space for vertex/indirect buffers */
+	info->dri->bufStart        = info->dri->ringReadOffset + info->dri->ringReadMapSize;
+	info->dri->bufMapSize      = info->dri->bufSize*1024*1024;
 
-				/* Reserve the rest for GART textures */
-    info->dri->gartTexStart     = info->dri->bufStart + info->dri->bufMapSize;
-    s = (info->dri->gartSize*1024*1024 - info->dri->gartTexStart);
-    l = RADEONMinBits((s-1) / RADEON_NR_TEX_REGIONS);
-    if (l < RADEON_LOG_TEX_GRANULARITY) l = RADEON_LOG_TEX_GRANULARITY;
-    info->dri->gartTexMapSize   = (s >> l) << l;
-    info->dri->log2GARTTexGran  = l;
+	/* Reserve the rest for GART textures */
+	info->dri->gartTexStart     = info->dri->bufStart + info->dri->bufMapSize;
+	s = (info->dri->gartSize*1024*1024 - info->dri->gartTexStart);
+	l = RADEONMinBits((s-1) / RADEON_NR_TEX_REGIONS);
+	if (l < RADEON_LOG_TEX_GRANULARITY) l = RADEON_LOG_TEX_GRANULARITY;
+	info->dri->gartTexMapSize   = (s >> l) << l;
+	info->dri->log2GARTTexGran  = l;
+    } else {
+      s = (8*1024*1024);
+      l = RADEONMinBits((s-1) / RADEON_NR_TEX_REGIONS);
+      l = RADEONMinBits((s-1) / RADEON_NR_TEX_REGIONS);
+      if (l < RADEON_LOG_TEX_GRANULARITY) l = RADEON_LOG_TEX_GRANULARITY;
+      info->gartTexMapSize   = (s >> l) << l;
+      info->log2GARTTexGran  = l;
+    }
+
 }
 
 /* AGP Mode Quirk List - Certain hostbridge/gfx-card combos don't work with
@@ -1210,6 +1220,9 @@ static Bool RADEONDRIPciInit(RADEONInfoPtr info, ScreenPtr pScreen)
  */
 static Bool RADEONDRIMapInit(RADEONInfoPtr info, ScreenPtr pScreen)
 {
+
+  if (info->drm_mm)
+    return TRUE;
 				/* Map registers */
     info->dri->registerSize = info->MMIOSize;
     if (drmAddMap(info->dri->drmFD, info->MMIOAddr, info->dri->registerSize,
@@ -1272,8 +1285,9 @@ static int RADEONDRIKernelInit(RADEONInfoPtr info, ScreenPtr pScreen)
      * registers back to their default values, so we need to restore
      * those engine register here.
      */
-    if (info->ChipFamily < CHIP_FAMILY_R600)
-	RADEONEngineRestore(pScrn);
+    if (!info->drm_mm)
+        if (info->ChipFamily < CHIP_FAMILY_R600)
+	    RADEONEngineRestore(pScrn);
 
     return TRUE;
 }
@@ -1540,6 +1554,9 @@ Bool RADEONDRISetVBlankInterrupt(ScrnInfoPtr pScrn, Bool on)
     RADEONInfoPtr  info    = RADEONPTR(pScrn);
     xf86CrtcConfigPtr   xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
     int value = 0;
+
+    if (info->drm_mode_setting)
+	return TRUE;
 
     if (!info->want_vblank_interrupts)
         on = FALSE;
@@ -1853,14 +1870,18 @@ Bool RADEONDRIFinishScreenInit(ScreenPtr pScreen)
 	return FALSE;
     }
 
-    /* Initialize the vertex buffers list */
-    if (!RADEONDRIBufInit(info, pScreen)) {
-	RADEONDRICloseScreen(pScreen);
-	return FALSE;
+    if (!info->drm_mm) {
+	/* Initialize the vertex buffers list */
+	if (!RADEONDRIBufInit(info, pScreen)) {
+	    RADEONDRICloseScreen(pScreen);
+	    return FALSE;
+	}
     }
 
-    /* Initialize IRQ */
-    RADEONDRIIrqInit(info, pScreen);
+    if (!info->drm_mode_setting) {
+	/* Initialize IRQ */
+	RADEONDRIIrqInit(info, pScreen);
+    }
 
     /* Initialize kernel GART memory manager */
     RADEONDRIGartHeapInit(info, pScreen);
@@ -2465,8 +2486,7 @@ static Bool radeon_dri_gart_init(ScreenPtr pScreen)
     RADEONDRIInitGARTValues(info);
 
     /* so we want to allocate the buffers/gart texmap */
-
-    
-    return radeon_setup_gart_mem(pScreen);
     /* ignore ring stuff */
+    return radeon_setup_gart_mem(pScreen);
+
 }
