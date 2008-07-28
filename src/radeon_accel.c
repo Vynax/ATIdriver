@@ -618,6 +618,47 @@ int RADEONCPStop(ScrnInfoPtr pScrn, RADEONInfoPtr info)
     }
 }
 
+drmBufPtr RADEONCSGetBuffer(ScrnInfoPtr pScrn)
+{
+    RADEONInfoPtr  info = RADEONPTR(pScrn);
+
+    info->ib_gem_fake.address = xcalloc(1, RADEON_BUFFER_SIZE);
+    if (!info->ib_gem_fake.address)
+        return NULL;
+
+    info->ib_gem_fake.used = 0;
+    info->ib_gem_fake.total = RADEON_BUFFER_SIZE;
+    return &info->ib_gem_fake;
+}
+
+void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
+{
+    RADEONInfoPtr  info = RADEONPTR(pScrn);
+    struct drm_radeon_cs args;
+
+    args.packets = info->ib_gem_fake.address;
+    args.dwords = info->indirectBuffer->used / sizeof(uint32_t);
+
+    drmCommandWriteRead(info->drmFD, DRM_RADEON_CS,
+			&args, sizeof(args));
+
+
+    info->indirectStart = 0;
+    info->indirectBuffer->used = 0;
+}
+
+void RADEONCSReleaseIndirect(ScrnInfoPtr pScrn)
+{
+    RADEONInfoPtr  info = RADEONPTR(pScrn);
+
+    if (!info->indirectBuffer) return;
+    RADEONCSFlushIndirect(pScrn, 0);
+    xfree(info->ib_gem_fake.address);
+    info->ib_gem_fake.address = NULL;
+    info->indirectBuffer = NULL;
+
+}
+
 drmBufPtr RADEONGEMGetBuffer(ScrnInfoPtr pScrn)
 {
     RADEONInfoPtr  info = RADEONPTR(pScrn);
@@ -708,7 +749,7 @@ drmBufPtr RADEONCPGetBuffer(ScrnInfoPtr pScrn)
     int            ret;
     
     if (info->drm_mm)
-	return RADEONGEMGetBuffer(pScrn);
+	return RADEONCSGetBuffer(pScrn);
 
 #if 0
     /* FIXME: pScrn->pScreen has not been initialized when this is first
@@ -779,7 +820,7 @@ void RADEONCPFlushIndirect(ScrnInfoPtr pScrn, int discard)
     if (start == buffer->used && !discard) return;
 
     if (info->drm_mm) {
-	RADEONGEMFlushIndirect(pScrn, discard);
+	RADEONCSFlushIndirect(pScrn, discard);
 	return;
     }
 
@@ -842,7 +883,7 @@ void RADEONCPReleaseIndirect(ScrnInfoPtr pScrn)
     }
 
     if (info->drm_mm) {
-      RADEONGEMReleaseIndirect(pScrn);
+      RADEONCSReleaseIndirect(pScrn);
       return;
     }
 
