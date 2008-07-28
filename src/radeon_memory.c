@@ -347,6 +347,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 
     if (info->directRenderingEnabled) {
 	/* allocate an object for all the textures */
+	info->textureSize /= 2;
 	info->mm.texture_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, info->textureSize, 0, 1, "Texture Buffer");
 	if (!info->mm.texture_buffer) {
 	    return FALSE;
