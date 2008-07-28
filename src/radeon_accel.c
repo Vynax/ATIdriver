@@ -640,9 +640,10 @@ drmBufPtr RADEONGEMGetBuffer(ScrnInfoPtr pScrn)
 	return NULL;
     }
 
-    info->cp->ib_gem_fake.used = 0;
-    info->cp->ib_gem_fake.total = 0;
+
     info->cp->ib_gem_fake.address = (void *)(unsigned long)info->mm.gem_ib_memory->bus_addr;
+    info->cp->ib_gem_fake.used = 0;
+    info->cp->ib_gem_fake.total = RADEON_BUFFER_SIZE;
     
     return &info->cp->ib_gem_fake;
 }
