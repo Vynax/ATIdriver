@@ -429,6 +429,23 @@ typedef struct {
     int singledac;
 } RADEONCardInfo;
 
+#define RADEON_2D_EXA_COPY 1
+#define RADEON_2D_EXA_SOLID 2
+
+struct radeon_2d_state {
+    int op; //
+    uint32_t dst_pitch_offset;
+    uint32_t src_pitch_offset;
+    uint32_t dp_gui_master_cntl;
+    uint32_t dp_cntl;
+    uint32_t dp_write_mask;
+    uint32_t dp_brush_frgd_clr;
+    uint32_t dp_brush_bkgd_clr;
+    uint32_t dp_src_frgd_clr;
+    uint32_t dp_src_bkgd_clr;
+    uint32_t default_sc_bottom_right;
+};
+    
 #ifdef XF86DRI
 struct radeon_cp {
     Bool              CPRuns;           /* CP is running */
@@ -899,6 +916,10 @@ typedef struct {
 
     Bool              r4xx_atom;
 
+    Bool new_cs; // new command submission routine
+    struct radeon_2d_state state_2d;
+    void (*reemit_current2d)(ScrnInfoPtr pScrn, int op); // emit the current 2D state into the IB 
+
     Bool drm_mm; // the drm memory manager exists and is initialised 
     struct {
       uint64_t vram_start;
@@ -1208,7 +1229,9 @@ do {									\
 
 #define RADEONCP_RELEASE(pScrn, info)					\
 do {									\
-    if (info->cp->CPInUse) {						\
+    if (info->new_cs) {							\
+	RADEONCPReleaseIndirect(pScrn);					\
+    } else if (info->cp->CPInUse) {						\
 	RADEON_PURGE_CACHE();						\
 	RADEON_WAIT_UNTIL_IDLE();					\
 	RADEONCPReleaseIndirect(pScrn);					\
@@ -1243,7 +1266,7 @@ do {									\
 
 #define RADEONCP_REFRESH(pScrn, info)					\
 do {									\
-    if (!info->cp->CPInUse) {						\
+    if (!info->cp->CPInUse && !info->new_cs) {				\
 	if (info->cp->needCacheFlush) {					\
 	    RADEON_PURGE_CACHE();					\
 	    RADEON_PURGE_ZCACHE();					\
@@ -1270,6 +1293,13 @@ do {									\
 #define RING_LOCALS	uint32_t *__head = NULL; int __expected; int __count = 0
 
 #define BEGIN_RING(n) do {						\
+    if (!info->cp->indirectBuffer) {					\
+	info->cp->indirectBuffer = RADEONCPGetBuffer(pScrn);		\
+	info->cp->indirectStart = 0;					\
+    } else if (info->cp->indirectBuffer->used + (n) * (int)sizeof(uint32_t) >	\
+	       info->cp->indirectBuffer->total) {				\
+	RADEONCPFlushIndirect(pScrn, 1);				\
+    }									\
     if (RADEON_VERBOSE) {						\
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO,				\
 		   "BEGIN_RING(%d) in %s\n", (unsigned int)n, __FUNCTION__);\
@@ -1282,13 +1312,6 @@ do {									\
     }									\
     info->cp->dma_debug_func = __FILE__;				\
     info->cp->dma_debug_lineno = __LINE__;				\
-    if (!info->cp->indirectBuffer) {					\
-	info->cp->indirectBuffer = RADEONCPGetBuffer(pScrn);		\
-	info->cp->indirectStart = 0;					\
-    } else if (info->cp->indirectBuffer->used + (n) * (int)sizeof(uint32_t) >	\
-	       info->cp->indirectBuffer->total) {		        \
-	RADEONCPFlushIndirect(pScrn, 1);				\
-    }									\
     __expected = n;							\
     __head = (pointer)((char *)info->cp->indirectBuffer->address +	\
 		       info->cp->indirectBuffer->used);			\
@@ -1330,6 +1353,15 @@ do {									\
     OUT_RING(CP_PACKET0(reg, 0));					\
     OUT_RING(val);							\
 } while (0)
+
+#define OUT_RING_RELOC(x)						       \
+  do {								       \
+    OUT_RING(CP_PACKET3(RADEON_CP_PACKET3_NOP, 2));		       \
+    OUT_RING(x);						       \
+    OUT_RING(0);						       \
+    OUT_RING(0);						       \
+  } while(0)
+
 
 #define FLUSH_RING()							\
 do {									\

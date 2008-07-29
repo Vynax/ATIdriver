@@ -224,6 +224,21 @@ int RADEONBiggerCrtcArea(PixmapPtr pPix)
     return crtc_num;
 }
 
+Bool RADEONGetPixmapOffsetCS(PixmapPtr pPix, uint32_t *pitch_offset)
+{
+	RINFO_FROM_SCREEN(pPix->drawable.pScreen);
+	uint32_t pitch, offset;
+	int bpp;
+
+	bpp = pPix->drawable.bitsPerPixel;
+	if (bpp == 24)
+		bpp = 8;
+
+	offset = exaGetPixmapOffset(pPix);
+	pitch = exaGetPixmapPitch(pPix);
+	return RADEONGetOffsetPitch(pPix, bpp, pitch_offset, offset, pitch);
+}
+
 #if X_BYTE_ORDER == X_BIG_ENDIAN
 
 static unsigned long swapper_surfaces[6];
@@ -336,6 +351,7 @@ static void RADEONFinishAccess(PixmapPtr pPix, int index)
 #define BEGIN_ACCEL(n)		RADEONWaitForFifo(pScrn, (n))
 #define OUT_ACCEL_REG(reg, val)	OUTREG(reg, val)
 #define OUT_ACCEL_REG_F(reg, val) OUTREG(reg, F_TO_DW(val))
+#define OUT_RELOC(x)            do {} while(0)
 #define FINISH_ACCEL()
 
 #ifdef RENDER
@@ -349,6 +365,7 @@ static void RADEONFinishAccess(PixmapPtr pPix, int index)
 #undef OUT_ACCEL_REG
 #undef OUT_ACCEL_REG_F
 #undef FINISH_ACCEL
+#undef OUT_RELOC
 
 #ifdef XF86DRI
 
@@ -359,6 +376,7 @@ static void RADEONFinishAccess(PixmapPtr pPix, int index)
 #define BEGIN_ACCEL(n)		BEGIN_RING(2*(n))
 #define OUT_ACCEL_REG(reg, val)	OUT_RING_REG(reg, val)
 #define FINISH_ACCEL()		ADVANCE_RING()
+#define OUT_RELOC(x) OUT_RING_RELOC(x)
 
 #define OUT_RING_F(x) OUT_RING(F_TO_DW(x))
 

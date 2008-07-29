@@ -3157,6 +3157,7 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 	info->useEXA = TRUE;
 	info->drm_mm = TRUE;
 	info->directRenderingEnabled = TRUE;
+	info->new_cs = TRUE;
 	//	info->directRenderingDisabled = FALSE;
     }
 #endif

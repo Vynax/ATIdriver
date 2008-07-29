@@ -430,19 +430,22 @@ static Bool FUNC_NAME(R100TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
     if (unit == 0) {
 	OUT_ACCEL_REG(RADEON_PP_TXFILTER_0, txfilter);
 	OUT_ACCEL_REG(RADEON_PP_TXFORMAT_0, txformat);
-	OUT_ACCEL_REG(RADEON_PP_TXOFFSET_0, txoffset);
 	OUT_ACCEL_REG(RADEON_PP_TEX_SIZE_0,
 	    (pPix->drawable.width - 1) |
 	    ((pPix->drawable.height - 1) << RADEON_TEX_VSIZE_SHIFT));
 	OUT_ACCEL_REG(RADEON_PP_TEX_PITCH_0, txpitch - 32);
+	OUT_ACCEL_REG(RADEON_PP_TXOFFSET_0, txoffset);
+	/* emit a texture relocation */
     } else {
 	OUT_ACCEL_REG(RADEON_PP_TXFILTER_1, txfilter);
 	OUT_ACCEL_REG(RADEON_PP_TXFORMAT_1, txformat);
-	OUT_ACCEL_REG(RADEON_PP_TXOFFSET_1, txoffset);
+
 	OUT_ACCEL_REG(RADEON_PP_TEX_SIZE_1,
 	    (pPix->drawable.width - 1) |
 	    ((pPix->drawable.height - 1) << RADEON_TEX_VSIZE_SHIFT));
 	OUT_ACCEL_REG(RADEON_PP_TEX_PITCH_1, txpitch - 32);
+	OUT_ACCEL_REG(RADEON_PP_TXOFFSET_1, txoffset);
+	/* emit a texture relocation */
     }
     FINISH_ACCEL();
 
@@ -773,6 +776,7 @@ static Bool FUNC_NAME(R200TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 		      ((pPix->drawable.height - 1) << RADEON_TEX_VSIZE_SHIFT));
 	OUT_ACCEL_REG(R200_PP_TXPITCH_0, txpitch - 32);
 	OUT_ACCEL_REG(R200_PP_TXOFFSET_0, txoffset);
+	/* emit a texture relocation */
     } else {
 	OUT_ACCEL_REG(R200_PP_TXFILTER_1, txfilter);
 	OUT_ACCEL_REG(R200_PP_TXFORMAT_1, txformat);
@@ -781,6 +785,7 @@ static Bool FUNC_NAME(R200TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 		      ((pPix->drawable.height - 1) << RADEON_TEX_VSIZE_SHIFT));
 	OUT_ACCEL_REG(R200_PP_TXPITCH_1, txpitch - 32);
 	OUT_ACCEL_REG(R200_PP_TXOFFSET_1, txoffset);
+	/* emit a texture relocation */
     }
     FINISH_ACCEL();
 
@@ -1049,12 +1054,13 @@ static Bool FUNC_NAME(R300TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
     int w = pPict->pDrawable->width;
     int h = pPict->pDrawable->height;
     int i, pixel_shift;
+    int qwords;
     ACCEL_PREAMBLE();
 
     TRACE;
 
     txpitch = exaGetPixmapPitch(pPix);
-    txoffset = exaGetPixmapOffset(pPix) + info->fbLocation + pScrn->fbOffset;
+    txoffset = exaGetPixmapOffset(pPix);
 
     if ((txoffset & 0x1f) != 0)
 	RADEON_FALLBACK(("Bad texture offset 0x%x\n", (int)txoffset));
@@ -1139,13 +1145,22 @@ static Bool FUNC_NAME(R300TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	RADEON_FALLBACK(("Bad filter 0x%x\n", pPict->filter));
     }
 
-    BEGIN_ACCEL(pPict->repeat ? 6 : 7);
+    qwords = pPict->repeat ? 6 : 7;
+    qwords += info->new_cs ? 2 : 0;
+
+    BEGIN_ACCEL(qwords);
     OUT_ACCEL_REG(R300_TX_FILTER0_0 + (unit * 4), txfilter);
     OUT_ACCEL_REG(R300_TX_FILTER1_0 + (unit * 4), 0);
     OUT_ACCEL_REG(R300_TX_FORMAT0_0 + (unit * 4), txformat0);
     OUT_ACCEL_REG(R300_TX_FORMAT1_0 + (unit * 4), txformat1);
     OUT_ACCEL_REG(R300_TX_FORMAT2_0 + (unit * 4), txpitch);
-    OUT_ACCEL_REG(R300_TX_OFFSET_0 + (unit * 4), txoffset);
+    if (info->new_cs) {
+        OUT_ACCEL_REG(R300_TX_OFFSET_0 + (unit * 4), txoffset);
+	OUT_RELOC(info->fbLocation + pScrn->fbOffset);
+    } else {
+        txoffset += info->fbLocation + pScrn->fbOffset;
+        OUT_ACCEL_REG(R300_TX_OFFSET_0 + (unit * 4), txoffset);
+    }
     if (!pPict->repeat)
 	OUT_ACCEL_REG(R300_TX_BORDER_COLOR_0 + (unit * 4), 0);
     FINISH_ACCEL();
@@ -1255,6 +1270,7 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
     uint32_t txenable, colorpitch;
     uint32_t blendcntl;
     int pixel_shift;
+    int qwords;
     ACCEL_PREAMBLE();
 
     TRACE;
@@ -1269,7 +1285,7 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 
     pixel_shift = pDst->drawable.bitsPerPixel >> 4;
 
-    dst_offset = exaGetPixmapOffset(pDst) + info->fbLocation + pScrn->fbOffset;
+    dst_offset = exaGetPixmapOffset(pDst);
     dst_pitch = exaGetPixmapPitch(pDst);
     colorpitch = dst_pitch >> pixel_shift;
 
@@ -1939,9 +1955,15 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 				     (8191 << R300_SCISSOR_Y_SHIFT)));
     FINISH_ACCEL();
 
-    BEGIN_ACCEL(3);
-
-    OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, dst_offset);
+    qwords = info->new_cs ? 5 : 3;
+    BEGIN_ACCEL(qwords);
+    if (info->new_cs) {
+        OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, dst_offset);
+	OUT_RELOC(info->fbLocation + pScrn->fbOffset);
+    } else {
+        dst_offset += info->fbLocation + pScrn->fbOffset;
+        OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, dst_offset);
+    }
     OUT_ACCEL_REG(R300_RB3D_COLORPITCH0, colorpitch);
 
     blendcntl = RADEONGetBlendCntl(op, pMaskPicture, pDstPicture->format);

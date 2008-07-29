@@ -627,7 +627,7 @@ drmBufPtr RADEONCSGetBuffer(ScrnInfoPtr pScrn)
         return NULL;
 
     info->ib_gem_fake.used = 0;
-    info->ib_gem_fake.total = RADEON_BUFFER_SIZE;
+    info->ib_gem_fake.total = RADEON_BUFFER_SIZE - (16*4); // reserve 16 dwords
     return &info->ib_gem_fake;
 }
 
@@ -635,6 +635,15 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
 {
     RADEONInfoPtr  info = RADEONPTR(pScrn);
     struct drm_radeon_cs args;
+    RING_LOCALS;
+
+    /* always add the cache flushes to the end of the IB */
+    info->indirectBuffer->total += 16 * 4;
+    
+    /* end of IB purge caches */
+    RADEON_PURGE_ZCACHE();
+    RADEON_PURGE_CACHE();
+    RADEON_WAIT_UNTIL_IDLE();
 
     args.packets = info->ib_gem_fake.address;
     args.dwords = info->indirectBuffer->used / sizeof(uint32_t);
@@ -645,6 +654,12 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
 
     info->indirectStart = 0;
     info->indirectBuffer->used = 0;
+    info->indirectBuffer->total -= 16*4;
+
+    /* copy some state into the buffer now - we need to add 2D state to each
+       buffer as the kernel needs to use the blit engine to move stuff around */
+    if (info->reemit_current2d)
+      info->reemit_current2d(pScrn, 0);
 }
 
 void RADEONCSReleaseIndirect(ScrnInfoPtr pScrn)
@@ -748,7 +763,7 @@ drmBufPtr RADEONCPGetBuffer(ScrnInfoPtr pScrn)
     int            i = 0;
     int            ret;
     
-    if (info->drm_mm)
+    if (info->new_cs)
 	return RADEONCSGetBuffer(pScrn);
 
 #if 0
@@ -819,7 +834,7 @@ void RADEONCPFlushIndirect(ScrnInfoPtr pScrn, int discard)
     if (!buffer) return;
     if (start == buffer->used && !discard) return;
 
-    if (info->drm_mm) {
+    if (info->new_cs) {
 	RADEONCSFlushIndirect(pScrn, discard);
 	return;
     }
@@ -882,7 +897,7 @@ void RADEONCPReleaseIndirect(ScrnInfoPtr pScrn)
 	}
     }
 
-    if (info->drm_mm) {
+    if (info->new_cs) {
       RADEONCSReleaseIndirect(pScrn);
       return;
     }
