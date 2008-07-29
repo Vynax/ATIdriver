@@ -1156,7 +1156,7 @@ static Bool FUNC_NAME(R300TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
     OUT_ACCEL_REG(R300_TX_FORMAT2_0 + (unit * 4), txpitch);
     if (info->new_cs) {
         OUT_ACCEL_REG(R300_TX_OFFSET_0 + (unit * 4), txoffset);
-	OUT_RELOC(info->fbLocation + pScrn->fbOffset);
+	OUT_RELOC(info->mm.front_buffer->kernel_bo_handle);
     } else {
         txoffset += info->fbLocation + pScrn->fbOffset;
         OUT_ACCEL_REG(R300_TX_OFFSET_0 + (unit * 4), txoffset);
@@ -1959,7 +1959,7 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
     BEGIN_ACCEL(qwords);
     if (info->new_cs) {
         OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, dst_offset);
-	OUT_RELOC(info->fbLocation + pScrn->fbOffset);
+	OUT_RELOC(info->mm.front_buffer->kernel_bo_handle);
     } else {
         dst_offset += info->fbLocation + pScrn->fbOffset;
         OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, dst_offset);

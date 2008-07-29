@@ -117,14 +117,14 @@ static void FUNC_NAME(Emit2DState)(ScrnInfoPtr pScrn, int op)
 
     if (info->new_cs) {
 	OUT_ACCEL_REG(RADEON_DST_PITCH_OFFSET, info->state_2d.dst_pitch_offset);
-	OUT_RELOC(info->fbLocation + pScrn->fbOffset);
+	OUT_RELOC(info->mm.front_buffer->kernel_bo_handle);
     } else
 	OUT_ACCEL_REG(RADEON_DST_PITCH_OFFSET, info->state_2d.dst_pitch_offset);
 
     if (info->new_cs) {
 	/* need to emit NOPs here with relocation for dst pitch offset */
 	OUT_ACCEL_REG(RADEON_SRC_PITCH_OFFSET, info->state_2d.src_pitch_offset);
-	OUT_RELOC(info->fbLocation + pScrn->fbOffset);
+	OUT_RELOC(info->mm.front_buffer->kernel_bo_handle);
     } else
 	OUT_ACCEL_REG(RADEON_SRC_PITCH_OFFSET, info->state_2d.src_pitch_offset);
     /* need to emit NOPs here with relocation for src pitch offset */
@@ -141,7 +141,6 @@ FUNC_NAME(RADEONPrepareSolid)(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
 {
     RINFO_FROM_SCREEN(pPix->drawable.pScreen);
     uint32_t datatype, dst_pitch_offset;
-    int qwords;
     ACCEL_PREAMBLE();
 
     TRACE;
@@ -362,9 +361,19 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 	    dst = (void *)info->mm.front_buffer->bus_addr + exaGetPixmapOffset(pDst);
 
 #ifdef ACCEL_CP
-    if ((info->directRenderingEnabled || info->drm_mode_setting) &&
-	RADEONGetPixmapOffsetPitch(pDst, &dst_pitch_off)) {
-	uint8_t *buf;
+    if (!info->directRenderingEnabled && !info->drm_mode_setting)
+        goto fallback;
+
+    if (!info->new_cs) {
+        if (RADEONGetPixmapOffsetPitch(pDst, &dst_pitch_off))
+	  goto fallback;
+    } else {
+      if (RADEONGetPixmapOffsetCS(pDst, &dst_pitch_off))
+	  goto fallback;
+    }
+
+    {
+        uint8_t *buf;
 	int cpp = bpp / 8;
 	ACCEL_PREAMBLE();
 
@@ -383,6 +392,38 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 
 	exaMarkSync(pDst->drawable.pScreen);
 	return TRUE;
+<<<<<<< HEAD:src/radeon_exa_funcs.c
+=======
+  }
+#endif
+
+ fallback:
+    /* Do we need that sync here ? probably not .... */
+    exaWaitSync(pDst->drawable.pScreen);
+
+#if X_BYTE_ORDER == X_BIG_ENDIAN
+    switch(bpp) {
+    case 15:
+    case 16:
+	swapper |= RADEON_NONSURF_AP0_SWP_16BPP
+		|  RADEON_NONSURF_AP1_SWP_16BPP;
+	break;
+    case 24:
+    case 32:
+	swapper |= RADEON_NONSURF_AP0_SWP_32BPP
+		|  RADEON_NONSURF_AP1_SWP_32BPP;
+	break;
+    }
+    OUTREG(RADEON_SURFACE_CNTL, swapper);
+#endif
+    w *= bpp / 8;
+    dst += (x * bpp / 8) + (y * dst_pitch);
+
+    while (h--) {
+	memcpy(dst, src, w);
+	src += src_pitch;
+	dst += dst_pitch;
+>>>>>>> radeon: exa through the handle relocation function:src/radeon_exa_funcs.c
     }
 
     return FALSE;

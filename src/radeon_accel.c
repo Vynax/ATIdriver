@@ -635,6 +635,7 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
 {
     RADEONInfoPtr  info = RADEONPTR(pScrn);
     struct drm_radeon_cs args;
+    int ret;
     RING_LOCALS;
 
     /* always add the cache flushes to the end of the IB */
@@ -645,11 +646,16 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     RADEON_PURGE_CACHE();
     RADEON_WAIT_UNTIL_IDLE();
 
-    args.packets = info->ib_gem_fake.address;
+    args.packets = (unsigned long)info->ib_gem_fake.address;
     args.dwords = info->indirectBuffer->used / sizeof(uint32_t);
 
-    drmCommandWriteRead(info->drmFD, DRM_RADEON_CS,
-			&args, sizeof(args));
+    ret = drmCommandWriteRead(info->drmFD, DRM_RADEON_CS,
+			      &args, sizeof(args));
+
+    if (ret) {
+      FatalError("DRM Command submission failure %d\n", ret);
+      return;
+    }
 
 
     info->indirectStart = 0;
@@ -677,7 +683,6 @@ void RADEONCSReleaseIndirect(ScrnInfoPtr pScrn)
 drmBufPtr RADEONGEMGetBuffer(ScrnInfoPtr pScrn)
 {
     RADEONInfoPtr  info = RADEONPTR(pScrn);
-    struct drm_radeon_gem_create args;
     int ret;
 
     info->mm.gem_ib_memory = radeon_allocate_memory(pScrn, RADEON_POOL_GART, RADEON_BUFFER_SIZE,
@@ -737,8 +742,7 @@ void RADEONGEMFlushIndirect(ScrnInfoPtr pScrn, int discard)
 void RADEONGEMReleaseIndirect(ScrnInfoPtr pScrn)
 {
     RADEONInfoPtr  info = RADEONPTR(pScrn);
-    struct drm_radeon_gem_indirect args;
-    struct drm_gem_close close_args;
+
     if (RADEON_VERBOSE) {
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Releasing IB\n");
     }

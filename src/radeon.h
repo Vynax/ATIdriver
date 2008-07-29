@@ -1354,11 +1354,13 @@ do {									\
     OUT_RING(val);							\
 } while (0)
 
+/* TODO - VRAM is wrong in general but true for now - all EXA stuff
+ is in VRAM */
 #define OUT_RING_RELOC(x)						       \
   do {								       \
     OUT_RING(CP_PACKET3(RADEON_CP_PACKET3_NOP, 2));		       \
     OUT_RING(x);						       \
-    OUT_RING(0);						       \
+    OUT_RING(RADEON_GEM_DOMAIN_VRAM);				       \
     OUT_RING(0);						       \
   } while(0)
 
