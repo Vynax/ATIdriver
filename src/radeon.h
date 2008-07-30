@@ -946,6 +946,7 @@ typedef struct {
       
     } mm;
 
+    drm_handle_t fb_map_handle;
     Bool drm_mode_setting;
 #ifdef XF86DRM_MODE
     drmmode_rec drmmode;

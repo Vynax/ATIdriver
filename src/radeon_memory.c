@@ -162,7 +162,7 @@ Bool radeon_bind_all_memory(ScrnInfoPtr pScrn)
     int i;
 
     for (i = 0; i < 2; i++) {
-	for (mem = info->mm.bo_list[i]->next; mem->next != NULL;
+	for (mem = info->mm.bo_list[i]; mem->next != NULL;
 	     mem = mem->next) {
 	    if (!radeon_bind_memory(pScrn, mem)) {
 		FatalError("Couldn't bind %s\n", mem->name);
@@ -180,7 +180,7 @@ Bool radeon_unbind_all_memory(ScrnInfoPtr pScrn)
     int i;
 
     for (i = 0; i < 2; i++) {
-	for (mem = info->mm.bo_list[i]->next; mem->next != NULL;
+	for (mem = info->mm.bo_list[i]; mem->next != NULL;
 	     mem = mem->next) {
 	    radeon_unbind_memory(pScrn, mem);
 	}
@@ -325,7 +325,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     if (radeon_map_memory(pScrn, info->mm.front_buffer)) {
 	ErrorF("Failed to map front buffer memory\n");
     }
-
+    info->frontPitch = pScrn->displayWidth;
 #if 0
     info->mm.exa_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, remain_size_bytes - info->textureSize, 0, 1, "EXA Memory Buffer");
     if (!info->mm.exa_buffer) {

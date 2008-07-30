@@ -1827,6 +1827,10 @@ static Bool RADEONPreInitChipType(ScrnInfoPtr pScrn)
                    "R500 support is under development. Please report any issues to xorg-driver-ati@lists.x.org\n");
     }
 
+    from               = X_PROBED;
+    info->LinearAddr   = PCI_REGION_BASE(info->PciInfo, 0, REGION_MEM) & ~0x1ffffffUL;
+    pScrn->memPhysBase = info->LinearAddr;
+
     if (!info->drm_mode_setting) {
 	from               = X_PROBED;
 	info->LinearAddr   = PCI_REGION_BASE(info->PciInfo, 0, REGION_MEM) & ~0x1ffffffUL;
@@ -3669,22 +3673,26 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 
     front_ptr = info->FB;
     if (info->drm_mm) {
-      radeon_setup_kernel_mem(pScreen);
-      front_ptr = info->mm.front_buffer->bus_addr;
-      pScrn->fbOffset = info->mm.front_buffer->offset;
-      info->dst_pitch_offset = (((pScrn->displayWidth * info->CurrentLayout.pixel_bytes / 64)
-				 << 22) | ((info->fbLocation + pScrn->fbOffset) >> 10));
-    }
+	radeon_setup_kernel_mem(pScreen);
+	front_ptr = info->mm.front_buffer->bus_addr;
+	pScrn->fbOffset = info->mm.front_buffer->offset;
+	info->dst_pitch_offset = (((pScrn->displayWidth * info->CurrentLayout.pixel_bytes / 64)
+				   << 22) | ((info->fbLocation + pScrn->fbOffset) >> 10));
+    } else {
 
-    /* Tell DRI about new memory map */
-    if (info->directRenderingEnabled && info->dri->newMemoryMap) {
-        if (RADEONDRISetParam(pScrn, RADEON_SETPARAM_NEW_MEMMAP, 1) < 0) {
+	/* Tell DRI about new memory map */
+	if (info->directRenderingEnabled && info->dri->newMemoryMap) {
+	    if (RADEONDRISetParam(pScrn, RADEON_SETPARAM_NEW_MEMMAP, 1) < 0) {
 		xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
 			   "[drm] failed to enable new memory map\n");
 		RADEONDRICloseScreen(pScreen);
 		info->directRenderingEnabled = FALSE;
+	    }
 	}
     }
+
+    RADEONDRIDoMappings(pScreen);
+
 #endif
     xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
 		   "Initializing fb layer\n");
@@ -3780,6 +3788,9 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 	info->directRenderingEnabled = RADEONDRIFinishScreenInit(pScreen);
     }
     if (info->directRenderingEnabled) {
+
+	radeon_update_dri_buffers(pScrn);
+    
 	/* DRI final init might have changed the memory map, we need to adjust
 	 * our local image to make sure we restore them properly on mode
 	 * changes or VT switches
@@ -5737,76 +5748,87 @@ Bool RADEONEnterVT(int scrnIndex, int flags)
     xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
 		   "RADEONEnterVT\n");
 
-    if (!radeon_card_posted(pScrn)) { /* Softboot V_BIOS */
-	if (info->IsAtomBios) {
-	    rhdAtomASICInit(info->atomBIOS);
-	} else {
-	    xf86Int10InfoPtr pInt;
-
-	    pInt = xf86InitInt10 (info->pEnt->index);
-	    if (pInt) {
-		pInt->num = 0xe6;
-		xf86ExecX86int10 (pInt);
-		xf86FreeInt10 (pInt);
+    if (!info->drm_mode_setting) {
+        if (!radeon_card_posted(pScrn)) { /* Softboot V_BIOS */
+	    if (info->IsAtomBios) {
+	        rhdAtomASICInit(info->atomBIOS);
 	    } else {
-		RADEONGetBIOSInitTableOffsets(pScrn);
-		RADEONPostCardFromBIOSTables(pScrn);
+	        xf86Int10InfoPtr pInt;
+
+	        pInt = xf86InitInt10 (info->pEnt->index);
+	        if (pInt) {
+		    pInt->num = 0xe6;
+		    xf86ExecX86int10 (pInt);
+		    xf86FreeInt10 (pInt);
+	        } else {
+		    RADEONGetBIOSInitTableOffsets(pScrn);
+		    RADEONPostCardFromBIOSTables(pScrn);
+	        }
+	    }
+        }
+	/* Makes sure the engine is idle before doing anything */
+	RADEONWaitForIdleMMIO(pScrn);
+
+	if (info->IsMobility && !IS_AVIVO_VARIANT) {
+	    if (xf86ReturnOptValBool(info->Options, OPTION_DYNAMIC_CLOCKS, FALSE)) {
+		RADEONSetDynamicClock(pScrn, 1);
+	    } else {
+		RADEONSetDynamicClock(pScrn, 0);
+	    }
+	} else if (IS_AVIVO_VARIANT) {
+	    if (xf86ReturnOptValBool(info->Options, OPTION_DYNAMIC_CLOCKS, FALSE)) {
+		atombios_static_pwrmgt_setup(pScrn, 1);
+		atombios_dyn_clk_setup(pScrn, 1);
 	    }
 	}
+	
+	if (IS_R300_VARIANT || IS_RV100_VARIANT)
+	    RADEONForceSomeClocks(pScrn);
+
     }
 
-    /* Makes sure the engine is idle before doing anything */
-    RADEONWaitForIdleMMIO(pScrn);
+    if (info->drm_mm)
+	radeon_bind_all_memory(pScrn);
 
-    if (info->IsMobility && !IS_AVIVO_VARIANT) {
-	if (xf86ReturnOptValBool(info->Options, OPTION_DYNAMIC_CLOCKS, FALSE)) {
-	    RADEONSetDynamicClock(pScrn, 1);
-	} else {
-	    RADEONSetDynamicClock(pScrn, 0);
-	}
-    } else if (IS_AVIVO_VARIANT) {
-	if (xf86ReturnOptValBool(info->Options, OPTION_DYNAMIC_CLOCKS, FALSE)) {
-	    atombios_static_pwrmgt_setup(pScrn, 1);
-	    atombios_dyn_clk_setup(pScrn, 1);
-	}
-    }
-
-    if (IS_R300_VARIANT || IS_RV100_VARIANT)
-	RADEONForceSomeClocks(pScrn);
-
-    for (i = 0; i < config->num_crtc; i++)
-	radeon_crtc_modeset_ioctl(config->crtc[i], TRUE);
+    radeon_update_dri_buffers(pScrn);
 
     pScrn->vtSema = TRUE;
+
+    if (!info->drm_mode_setting)
+	for (i = 0; i < config->num_crtc; i++)
+	    radeon_crtc_modeset_ioctl(config->crtc[i], TRUE);
 
     if (!xf86SetDesiredModes(pScrn))
 	return FALSE;
 
-    if (info->ChipFamily < CHIP_FAMILY_R600)
-        RADEONRestoreSurfaces(pScrn, info->ModeReg);
+    if (!info->drm_mode_setting) {
+	if (info->ChipFamily < CHIP_FAMILY_R600)
+	    RADEONRestoreSurfaces(pScrn, info->ModeReg);
 #ifdef XF86DRI
-    if (info->directRenderingEnabled) {
-    	if (info->cardType == CARD_PCIE &&
-	    info->dri->pKernelDRMVersion->version_minor >= 19 &&
-	    info->FbSecureSize) {
+	if (info->directRenderingEnabled) {
+	    if (info->cardType == CARD_PCIE &&
+		info->dri->pKernelDRMVersion->version_minor >= 19 &&
+		info->FbSecureSize) {
 #if X_BYTE_ORDER == X_BIG_ENDIAN
-	    unsigned char *RADEONMMIO = info->MMIO;
-	    unsigned int sctrl = INREG(RADEON_SURFACE_CNTL);
+	        unsigned char *RADEONMMIO = info->MMIO;
+	        unsigned int sctrl = INREG(RADEON_SURFACE_CNTL);
 
-	    /* we need to backup the PCIE GART TABLE from fb memory */
-	    OUTREG(RADEON_SURFACE_CNTL, 0);
+	        /* we need to backup the PCIE GART TABLE from fb memory */
+	        OUTREG(RADEON_SURFACE_CNTL, 0);
 #endif
-	    memcpy(info->FB + info->dri->pciGartOffset, info->dri->pciGartBackup, info->dri->pciGartSize);
+
+		/* we need to backup the PCIE GART TABLE from fb memory */
+		memcpy(info->FB + info->dri->pciGartOffset, info->dri->pciGartBackup, info->dri->pciGartSize);
 #if X_BYTE_ORDER == X_BIG_ENDIAN
-	    OUTREG(RADEON_SURFACE_CNTL, sctrl);
+	        OUTREG(RADEON_SURFACE_CNTL, sctrl);
 #endif
-    	}
+	    }
 
-	/* get the DRI back into shape after resume */
-	RADEONDRISetVBlankInterrupt (pScrn, TRUE);
-	RADEONDRIResume(pScrn->pScreen);
-	RADEONAdjustMemMapRegisters(pScrn, info->ModeReg);
-
+	    /* get the DRI back into shape after resume */
+	    RADEONDRISetVBlankInterrupt (pScrn, TRUE);
+	    RADEONDRIResume(pScrn->pScreen);
+	    RADEONAdjustMemMapRegisters(pScrn, info->ModeReg);
+	}
     }
 #endif
     /* this will get XVideo going again, but only if XVideo was initialised
@@ -5821,7 +5843,7 @@ Bool RADEONEnterVT(int scrnIndex, int flags)
 	info->accel_state->XInited3D = FALSE;
 
 #ifdef XF86DRI
-    if (info->directRenderingEnabled) {
+    if (info->directRenderingEnabled && !info->drm_mode_setting) {
         if (info->ChipFamily >= CHIP_FAMILY_R600)
 		R600LoadShaders(pScrn);
 	RADEONCP_START(pScrn, info);
@@ -5846,26 +5868,28 @@ void RADEONLeaveVT(int scrnIndex, int flags)
 		   "RADEONLeaveVT\n");
 #ifdef XF86DRI
     if (RADEONPTR(pScrn)->directRenderingInited) {
+	if (!info->drm_mode_setting) {
+	    RADEONDRISetVBlankInterrupt (pScrn, FALSE);
+	    DRILock(pScrn->pScreen, 0);
+	    RADEONCP_STOP(pScrn, info);
 
-	RADEONDRISetVBlankInterrupt (pScrn, FALSE);
-	DRILock(pScrn->pScreen, 0);
-	RADEONCP_STOP(pScrn, info);
-
-        if (info->cardType == CARD_PCIE &&
-	    info->dri->pKernelDRMVersion->version_minor >= 19 &&
-	    info->FbSecureSize) {
+	    if (info->cardType == CARD_PCIE &&
+		info->dri->pKernelDRMVersion->version_minor >= 19 &&
+		info->FbSecureSize) {
 #if X_BYTE_ORDER == X_BIG_ENDIAN
-	    unsigned char *RADEONMMIO = info->MMIO;
-	    unsigned int sctrl = INREG(RADEON_SURFACE_CNTL);
+                unsigned char *RADEONMMIO = info->MMIO;
+	        unsigned int sctrl = INREG(RADEON_SURFACE_CNTL);
 
-            /* we need to backup the PCIE GART TABLE from fb memory */
-	    OUTREG(RADEON_SURFACE_CNTL, 0);
+                /* we need to backup the PCIE GART TABLE from fb memory */
+	        OUTREG(RADEON_SURFACE_CNTL, 0);
 #endif
-            memcpy(info->dri->pciGartBackup, (info->FB + info->dri->pciGartOffset), info->dri->pciGartSize);
+		/* we need to backup the PCIE GART TABLE from fb memory */
+		memcpy(info->dri->pciGartBackup, (info->FB + info->dri->pciGartOffset), info->dri->pciGartSize);
 #if X_BYTE_ORDER == X_BIG_ENDIAN
-	    OUTREG(RADEON_SURFACE_CNTL, sctrl);
+	        OUTREG(RADEON_SURFACE_CNTL, sctrl);
 #endif
-        }
+	    }
+	}
 
 	/* Make sure 3D clients will re-upload textures to video RAM */
 	if (info->dri->textureSize) {
@@ -5906,6 +5930,9 @@ void RADEONLeaveVT(int scrnIndex, int flags)
 #endif
 
     xf86_hide_cursors (pScrn);
+
+    if (info->drm_mm)
+	radeon_unbind_all_memory(pScrn);
 
     if (!info->drm_mode_setting) {
 	RADEONRestore(pScrn);
@@ -6002,6 +6029,10 @@ static Bool RADEONCloseScreen(int scrnIndex, ScreenPtr pScreen)
     info->DGAModes = NULL;
     xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
 		   "Unmapping memory\n");
+
+    if (info->drm_mm)
+	radeon_unbind_all_memory(pScrn);
+
     RADEONUnmapMem(pScrn);
 
     pScrn->vtSema = FALSE;
