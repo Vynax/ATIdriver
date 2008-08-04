@@ -6030,8 +6030,10 @@ static Bool RADEONCloseScreen(int scrnIndex, ScreenPtr pScreen)
     xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
 		   "Unmapping memory\n");
 
-    if (info->drm_mm)
+    if (info->drm_mm) {
 	radeon_unbind_all_memory(pScrn);
+	radeon_free_all_memory(pScrn);
+    }
 
     RADEONUnmapMem(pScrn);
 

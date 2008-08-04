@@ -1530,4 +1530,5 @@ int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
 void radeon_unmap_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
 void radeon_free_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
 Bool radeon_bind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
+Bool radeon_free_all_memory(ScrnInfoPtr pScrn);
 #endif /* _RADEON_H_ */

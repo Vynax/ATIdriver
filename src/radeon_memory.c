@@ -162,7 +162,7 @@ Bool radeon_bind_all_memory(ScrnInfoPtr pScrn)
     int i;
 
     for (i = 0; i < 2; i++) {
-	for (mem = info->mm.bo_list[i]; mem->next != NULL;
+	for (mem = info->mm.bo_list[i]; mem != NULL;
 	     mem = mem->next) {
 	    if (!radeon_bind_memory(pScrn, mem)) {
 		FatalError("Couldn't bind %s\n", mem->name);
@@ -180,9 +180,24 @@ Bool radeon_unbind_all_memory(ScrnInfoPtr pScrn)
     int i;
 
     for (i = 0; i < 2; i++) {
-	for (mem = info->mm.bo_list[i]; mem->next != NULL;
+	for (mem = info->mm.bo_list[i]; mem != NULL;
 	     mem = mem->next) {
 	    radeon_unbind_memory(pScrn, mem);
+	}
+    }
+    return TRUE;
+}
+
+Bool radeon_free_all_memory(ScrnInfoPtr pScrn)
+{
+    RADEONInfoPtr  info   = RADEONPTR(pScrn);	
+    struct radeon_memory *mem;
+    int i;
+
+    for (i = 0; i < 2; i++) {
+	for (mem = info->mm.bo_list[i]; mem != NULL;
+	     mem = mem->next) {
+	    radeon_free_memory(pScrn, mem);
 	}
     }
     return TRUE;
