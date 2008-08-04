@@ -133,6 +133,7 @@ static __inline__ uint32_t float4touint(float fr, float fg, float fb, float fa)
 #define BEGIN_ACCEL(n)		RADEONWaitForFifo(pScrn, (n))
 #define OUT_ACCEL_REG(reg, val)	OUTREG(reg, val)
 #define OUT_ACCEL_REG_F(reg, val) OUTREG(reg, F_TO_DW(val))
+#define OUT_RELOC(x) do {} while(0)
 #define FINISH_ACCEL()
 
 #include "radeon_textured_videofuncs.c"
@@ -155,6 +156,7 @@ static __inline__ uint32_t float4touint(float fr, float fg, float fb, float fa)
 #define OUT_ACCEL_REG_F(reg, val)	OUT_ACCEL_REG(reg, F_TO_DW(val))
 #define FINISH_ACCEL()		ADVANCE_RING()
 #define OUT_RING_F(x) OUT_RING(F_TO_DW(x))
+#define OUT_RELOC(x) OUT_RING_RELOC(x)
 
 #include "radeon_textured_videofuncs.c"
 
@@ -451,11 +453,15 @@ RADEONPutImageTextured(ScrnInfoPtr pScrn,
     left = (x1 >> 16) & ~1;
     npixels = ((((x2 + 0xffff) >> 16) + 1) & ~1) - left;
 
-    pPriv->src_offset = pPriv->video_offset + info->fbLocation + pScrn->fbOffset;
-    if (info->ChipFamily >= CHIP_FAMILY_R600)
-	pPriv->src_addr = (uint8_t *)(info->FB + pPriv->video_offset);
-    else
-	pPriv->src_addr = (uint8_t *)(info->FB + pPriv->video_offset + (top * dstPitch));
+    pPriv->src_offset = pPriv->video_offset;
+    if (info->drm_mm) {
+        pPriv->src_addr = (uint8_t *)(info->mm.front_buffer->map + pPriv->video_offset + (top * dstPitch));
+    } else {
+        if (info->ChipFamily >= CHIP_FAMILY_R600)
+            pPriv->src_addr = (uint8_t *)(info->FB + pPriv->video_offset);
+	else
+            pPriv->src_addr = (uint8_t *)(info->FB + pPriv->video_offset + (top * dstPitch));
+    }
     pPriv->src_pitch = dstPitch;
     pPriv->planeu_offset = dstPitch * dst_height;
     pPriv->planev_offset = pPriv->planeu_offset + dstPitch2 * ((dst_height + 1) >> 1);
@@ -587,13 +593,9 @@ RADEONPutImageTextured(ScrnInfoPtr pScrn,
     pPriv->h = height;
 
 #ifdef XF86DRI
-<<<<<<< HEAD:src/radeon_textured_video.c
     if (IS_R600_3D)
 	R600DisplayTexturedVideo(pScrn, pPriv);
-    else if (info->directRenderingEnabled)
-=======
     if (info->directRenderingEnabled || info->drm_mode_setting)
->>>>>>> radeon: make at least the EXA stipple work..:src/radeon_textured_video.c
 	RADEONDisplayTexturedVideoCP(pScrn, pPriv);
     else
 #endif
