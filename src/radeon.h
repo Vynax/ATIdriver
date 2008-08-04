@@ -919,7 +919,7 @@ typedef struct {
     Bool new_cs; // new command submission routine
     struct radeon_2d_state state_2d;
     void (*reemit_current2d)(ScrnInfoPtr pScrn, int op); // emit the current 2D state into the IB 
-
+    Bool cs_used_depth;
     Bool drm_mm; // the drm memory manager exists and is initialised 
     struct {
       uint64_t vram_start;

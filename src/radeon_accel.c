@@ -642,7 +642,11 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     info->indirectBuffer->total += 16 * 4;
     
     /* end of IB purge caches */
-    RADEON_PURGE_ZCACHE();
+    if (info->cs_used_depth) {
+	RADEON_PURGE_ZCACHE();
+	info->cs_used_depth = 0;
+    }
+
     RADEON_PURGE_CACHE();
     RADEON_WAIT_UNTIL_IDLE();
 
