@@ -358,7 +358,7 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 	return FALSE;
 
     if (info->drm_mode_setting)
-	    dst = (void *)info->mm.front_buffer->bus_addr + exaGetPixmapOffset(pDst);
+	    dst = info->mm.front_buffer->map + exaGetPixmapOffset(pDst);
 
 #ifdef ACCEL_CP
     if (!info->directRenderingEnabled && !info->drm_mode_setting)
@@ -476,7 +476,7 @@ RADEONDownloadFromScreenCP(PixmapPtr pSrc, int x, int y, int w, int h,
     TRACE;
 
     if (info->drm_mode_setting)
-      src = (void *)info->mm.front_buffer->bus_addr + exaGetPixmapOffset(pSrc);
+      src = info->mm.front_buffer->map + exaGetPixmapOffset(pSrc);
 
 #ifdef ACCEL_CP
     /*

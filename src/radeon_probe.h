@@ -153,7 +153,7 @@ struct radeon_memory {
 
     unsigned long size;
     unsigned long allocated_size;
-    uint64_t bus_addr;
+    void *map;
     int key;
 
     Bool bound;

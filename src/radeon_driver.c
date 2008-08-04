@@ -3674,7 +3674,7 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
     front_ptr = info->FB;
     if (info->drm_mm) {
 	radeon_setup_kernel_mem(pScreen);
-	front_ptr = info->mm.front_buffer->bus_addr;
+	front_ptr = info->mm.front_buffer->map;
 	pScrn->fbOffset = info->mm.front_buffer->offset;
 	info->dst_pitch_offset = (((pScrn->displayWidth * info->CurrentLayout.pixel_bytes / 64)
 				   << 22) | ((info->fbLocation + pScrn->fbOffset) >> 10));

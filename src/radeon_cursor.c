@@ -320,7 +320,7 @@ radeon_crtc_load_cursor_argb (xf86CrtcPtr crtc, CARD32 *image)
     RADEONCTRACE(("RADEONLoadCursorARGB\n"));
 
     if (info->drm_mm) 
-      d = (uint32_t *)(pointer)radeon_crtc->cursor->bus_addr;
+      d = (uint32_t *)radeon_crtc->cursor->map;
     else
       d = (uint32_t *)(pointer)(info->FB + radeon_crtc->cursor_offset);
 

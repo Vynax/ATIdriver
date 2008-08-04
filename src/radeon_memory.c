@@ -78,7 +78,7 @@ void radeon_free_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 	if (mem == NULL)
 		return;
 
-	if (mem->bus_addr)
+	if (mem->map)
 	    radeon_unmap_memory(pScrn, mem);
 	    
 	radeon_unbind_memory(pScrn, mem);
@@ -199,15 +199,15 @@ int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
     ret = drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_MMAP, &args, sizeof(args));
 
     if (!ret)
-	mem->bus_addr = args.addr_ptr;
-    ErrorF("Mapped %s size %d at %d %p\n", mem->name, mem->size, mem->offset, (void *)(unsigned long)mem->bus_addr);
+	mem->map = (void *)(unsigned long)args.addr_ptr;
+    ErrorF("Mapped %s size %d at %d %p\n", mem->name, mem->size, mem->offset, mem->map);
     return ret;
 }
 
 void radeon_unmap_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 {
-    munmap((void *)(unsigned long)mem->bus_addr, mem->size);
-    mem->bus_addr = NULL;
+    munmap(mem->map, mem->size);
+    mem->map = NULL;
 }
 
 /* Okay radeon
@@ -260,7 +260,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 		RADEONCrtcPrivatePtr radeon_crtc = crtc->driver_private;
 		radeon_crtc->cursor = info->mm.cursor[c];
 	    } else {
-		drmmode_set_cursor(pScrn, &info->drmmode, c, (void *)info->mm.cursor[c]->bus_addr, info->mm.cursor[c]->kernel_bo_handle);
+		drmmode_set_cursor(pScrn, &info->drmmode, c, (void *)info->mm.cursor[c]->map, info->mm.cursor[c]->kernel_bo_handle);
 	    }
 	    total_size_bytes += cursor_size;
 	}
@@ -336,7 +336,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 	ErrorF("Failed to map front buffer memory\n");
     }
 #endif
-    info->exa->memoryBase = (void *)(unsigned long)info->mm.front_buffer->bus_addr;
+    info->exa->memoryBase = info->mm.front_buffer->map;
     info->exa->offScreenBase = screen_size;
     info->exa->memorySize = fb_size_bytes;
 
