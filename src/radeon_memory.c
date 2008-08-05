@@ -324,8 +324,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 
     ErrorF("texture size is %dK, exa is %dK\n", info->textureSize / 1024, (remain_size_bytes - info->textureSize)/1024);
 
-
-        /* allocate an object for all the EXA bits */
+    /* allocate an object for all the EXA bits */
     /* shove EXA + frontbuffer together until we have EXA pixmap hooks */
     fb_size_bytes = screen_size + (remain_size_bytes - info->textureSize);
     ErrorF("fb size is %dK %dK\n", fb_size_bytes / 1024, total_size_bytes / 1024);
