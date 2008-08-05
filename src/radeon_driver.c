@@ -3163,8 +3163,8 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 	info->directRenderingEnabled = TRUE;
 	info->new_cs = TRUE;
 	//	info->directRenderingDisabled = FALSE;
-    }
 #endif
+    }
 
     RADEONSetPitch(pScrn);
 
