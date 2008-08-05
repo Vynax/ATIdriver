@@ -117,7 +117,8 @@ if test "$DRI" = yes; then
 
         save_CFLAGS="$CFLAGS"
         CFLAGS="$XORG_CFLAGS $DRI_CFLAGS"
-        AC_CHECK_HEADER(xf86drmMode.h,[DRM_MODE=yes],[DRM_MODE=no],[#include "stdint.h"])
+        AC_CHECK_HEADER(xf86drmMode.h,[DRM_MODE=yes],[DRM_MODE=no],[#include <stdint.h>
+#include <stdlib.h>])
         if test "x$DRM_MODE" = xyes; then
                 AC_DEFINE(XF86DRM_MODE,1,[DRM kernel modesetting])
         fi
