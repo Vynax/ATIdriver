@@ -143,6 +143,7 @@ static __inline__ uint32_t float4touint(float fr, float fg, float fb, float fa)
 #undef BEGIN_ACCEL
 #undef OUT_ACCEL_REG
 #undef OUT_ACCEL_REG_F
+#undef OUT_RELOC
 #undef FINISH_ACCEL
 
 #ifdef XF86DRI
