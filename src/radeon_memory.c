@@ -109,7 +109,7 @@ struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int si
 {
     RADEONInfoPtr  info   = RADEONPTR(pScrn);	
     struct drm_radeon_gem_create args;
-    struct radeon_memory *mem, *scan;
+    struct radeon_memory *mem;
     int ret;
 
     mem = xcalloc(1, sizeof(*mem));
@@ -215,7 +215,7 @@ int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 
     if (!ret)
 	mem->map = (void *)(unsigned long)args.addr_ptr;
-    ErrorF("Mapped %s size %d at %d %p\n", mem->name, mem->size, mem->offset, mem->map);
+    ErrorF("Mapped %s size %ld at %ld %p\n", mem->name, mem->size, mem->offset, mem->map);
     return ret;
 }
 

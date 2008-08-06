@@ -1211,6 +1211,16 @@ radeon_legacy_free_memory(ScrnInfoPtr pScrn,
 extern Bool radeon_bind_all_memory(ScrnInfoPtr pScrn);
 extern Bool radeon_unbind_all_memory(ScrnInfoPtr pScrn);
 extern struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int size, int alignment, Bool no_backing_store, char *name);
+uint32_t radeon_create_new_fb(ScrnInfoPtr pScrn, int width, int height, int *pitch);
+int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
+void radeon_unmap_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
+void radeon_free_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
+Bool radeon_bind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
+Bool radeon_free_all_memory(ScrnInfoPtr pScrn);
+Bool radeon_setup_kernel_mem(ScreenPtr pScreen);
+Bool RADEONDRIDoMappings(ScreenPtr pScreen);
+Bool radeon_update_dri_buffers(ScrnInfoPtr pScrn);
+Bool radeon_setup_gart_mem(ScreenPtr pScreen);
 
 #ifdef XF86DRI
 #  ifdef USE_XAA
@@ -1525,10 +1535,4 @@ static __inline__ int radeon_timedout(const struct timeval *endtime)
         now.tv_usec > endtime->tv_usec : now.tv_sec > endtime->tv_sec;
 }
 
-uint32_t radeon_create_new_fb(ScrnInfoPtr pScrn, int width, int height, int *pitch);
-int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
-void radeon_unmap_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
-void radeon_free_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
-Bool radeon_bind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
-Bool radeon_free_all_memory(ScrnInfoPtr pScrn);
 #endif /* _RADEON_H_ */

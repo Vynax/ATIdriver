@@ -223,7 +223,6 @@ FUNC_NAME(RADEONDoPrepareCopy)(ScrnInfoPtr pScrn, uint32_t src_pitch_offset,
 			       Pixel planemask)
 {
     RADEONInfoPtr info = RADEONPTR(pScrn);
-    uint32_t qwords;
     ACCEL_PREAMBLE();
 
     RADEON_SWITCH_TO_2D();
@@ -392,38 +391,6 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 
 	exaMarkSync(pDst->drawable.pScreen);
 	return TRUE;
-<<<<<<< HEAD:src/radeon_exa_funcs.c
-=======
-  }
-#endif
-
- fallback:
-    /* Do we need that sync here ? probably not .... */
-    exaWaitSync(pDst->drawable.pScreen);
-
-#if X_BYTE_ORDER == X_BIG_ENDIAN
-    switch(bpp) {
-    case 15:
-    case 16:
-	swapper |= RADEON_NONSURF_AP0_SWP_16BPP
-		|  RADEON_NONSURF_AP1_SWP_16BPP;
-	break;
-    case 24:
-    case 32:
-	swapper |= RADEON_NONSURF_AP0_SWP_32BPP
-		|  RADEON_NONSURF_AP1_SWP_32BPP;
-	break;
-    }
-    OUTREG(RADEON_SURFACE_CNTL, swapper);
-#endif
-    w *= bpp / 8;
-    dst += (x * bpp / 8) + (y * dst_pitch);
-
-    while (h--) {
-	memcpy(dst, src, w);
-	src += src_pitch;
-	dst += dst_pitch;
->>>>>>> radeon: exa through the handle relocation function:src/radeon_exa_funcs.c
     }
 
     return FALSE;
@@ -484,7 +451,8 @@ RADEONDownloadFromScreenCP(PixmapPtr pSrc, int x, int y, int w, int h,
      * blitting the bits to one half while copying them out of the other one and
      * then swapping the halves.
      */
-    if (bpp != 24 && RADEONGetDatatypeBpp(bpp, &datatype) &&
+    if (!info->drm_mm && info->accelDFS && bpp != 24 &&
+	RADEONGetDatatypeBpp(bpp, &datatype) &&
 	RADEONGetPixmapOffsetPitch(pSrc, &src_pitch_offset) &&
 	(scratch = RADEONCPGetBuffer(pScrn)))
     {
