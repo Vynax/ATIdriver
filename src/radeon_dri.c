@@ -1890,7 +1890,7 @@ Bool RADEONDRIScreenInit(ScreenPtr pScreen)
     }
 
     /* Now, nuke dri.c's dummy frontbuffer map setup if we did that. */
-    if (pDRIInfo->frameBufferSize != 0) {
+    if (pDRIInfo->frameBufferSize != 0 && info->drm_mm) {
 	int tmp;
 	drm_handle_t fb_handle;
 	void *ptmp;
