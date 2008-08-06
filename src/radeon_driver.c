@@ -3673,6 +3673,14 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 
     front_ptr = info->FB;
     if (info->drm_mm) {
+	if (info->directRenderingEnabled && info->newMemoryMap) {
+	    if (RADEONDRISetParam(pScrn, RADEON_SETPARAM_NEW_MEMMAP, 1) < 0) {
+		xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
+			   "[drm] failed to enable new memory map\n");
+		RADEONDRICloseScreen(pScreen);
+		info->directRenderingEnabled = FALSE;		
+	    }
+	}
 	radeon_setup_kernel_mem(pScreen);
 	front_ptr = info->mm.front_buffer->map;
 	pScrn->fbOffset = info->mm.front_buffer->offset;
@@ -3789,7 +3797,8 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
     }
     if (info->directRenderingEnabled) {
 
-	radeon_update_dri_buffers(pScrn);
+	if (info->drm_mm)
+	    radeon_update_dri_buffers(pScrn);
     
 	/* DRI final init might have changed the memory map, we need to adjust
 	 * our local image to make sure we restore them properly on mode
