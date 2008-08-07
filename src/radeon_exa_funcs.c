@@ -573,10 +573,8 @@ Bool FUNC_NAME(RADEONDrawInit)(ScreenPtr pScreen)
 	info->accel_state->exa->DownloadFromScreen = RADEONDownloadFromScreenCP;
 #endif
 
-#if X_BYTE_ORDER == X_BIG_ENDIAN
     info->accel_state->exa->PrepareAccess = RADEONPrepareAccess;
     info->accel_state->exa->FinishAccess = RADEONFinishAccess;
-#endif /* X_BYTE_ORDER == X_BIG_ENDIAN */
 
     info->accel_state->exa->flags = EXA_OFFSCREEN_PIXMAPS;
 #ifdef EXA_SUPPORTS_PREPARE_AUX
@@ -584,6 +582,12 @@ Bool FUNC_NAME(RADEONDrawInit)(ScreenPtr pScreen)
 #endif
     info->accel_state->exa->pixmapOffsetAlign = RADEON_BUFFER_ALIGN + 1;
     info->accel_state->exa->pixmapPitchAlign = 64;
+
+    if (info->drm_mm) {
+      info->exa->flags |= EXA_HANDLES_PIXMAPS;
+      //      info->exa->PrepareAccess = RADEONEXAPrepareAccess;
+      //      info->exa->FinishAccess = RADEONEXAFinishAccess;
+    }
 
 #ifdef RENDER
     if (info->RenderAccel) {
@@ -627,6 +631,16 @@ Bool FUNC_NAME(RADEONDrawInit)(ScreenPtr pScreen)
 	}
     }
 #endif
+
+#if EXA_VERSION_MINOR >= 4
+    if (info->drm_mm) {
+        info->exa->CreatePixmap = RADEONEXACreatePixmap;
+        info->exa->DestroyPixmap = RADEONEXADestroyPixmap;
+        info->exa->PixmapIsOffscreen = RADEONEXAPixmapIsOffscreen;
+        info->exa->ModifyPixmapHeader = RADEONEXAModifyPixmapHeader;
+    } else 
+#endif
+
 
 #if EXA_VERSION_MAJOR > 2 || (EXA_VERSION_MAJOR == 2 && EXA_VERSION_MINOR >= 3)
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Setting EXA maxPitchBytes\n");

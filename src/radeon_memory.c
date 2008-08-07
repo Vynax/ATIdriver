@@ -33,7 +33,7 @@ radeon_bind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 
 		mem->bound = TRUE;
 		mem->offset = pin.offset;
-		ErrorF("pin returned 0x%llx\n", pin.offset);
+		//		ErrorF("pin returned 0x%llx\n", pin.offset);
 		mem->end = mem->offset + mem->size;
 		return TRUE;
 	}
@@ -144,7 +144,7 @@ struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int si
 
     mem->kernel_bo_handle = args.handle;
     xf86DrvMsg(pScrn->scrnIndex, X_INFO,	
-	       "%s allocated with handle %x\n", mem->name, mem->kernel_bo_handle);
+	       "%s allocated %d with handle %x\n", mem->name, mem->size, mem->kernel_bo_handle);
 
     /* add to VRAM linked list for now */
 
@@ -217,7 +217,7 @@ int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 
     if (!ret)
 	mem->map = (void *)(unsigned long)args.addr_ptr;
-    ErrorF("Mapped %s size %ld at %ld %p\n", mem->name, mem->size, mem->offset, mem->map);
+    //ErrorF("Mapped %s size %ld at %ld %p\n", mem->name, mem->size, mem->offset, mem->map);
     return ret;
 }
 
@@ -362,7 +362,6 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 	       1024, info->exa->offScreenBase);
 
     if (info->directRenderingEnabled) {
-	/* allocate an object for all the textures */
 	info->textureSize /= 2;
 	info->mm.texture_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, info->textureSize, 0, 1, "Texture Buffer", 1);
 	if (!info->mm.texture_buffer) {

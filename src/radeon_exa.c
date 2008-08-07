@@ -45,6 +45,13 @@
 
 #include "xf86.h"
 
+#define RADEON_PIXMAP_IS_FRONTBUFFER 1
+
+/* quick hacks lolz */
+struct radeon_exa_pixmap_priv {
+    struct radeon_memory *mem;
+    int flags;
+};
 
 /***********************************************************************/
 #define RINFO_FROM_SCREEN(pScr) ScrnInfoPtr pScrn =  xf86Screens[pScr->myNum]; \
@@ -182,12 +189,19 @@ Bool RADEONGetPixmapOffsetPitch(PixmapPtr pPix, uint32_t *pitch_offset)
 	RINFO_FROM_SCREEN(pPix->drawable.pScreen);
 	uint32_t pitch, offset;
 	int bpp;
+	struct radeon_exa_pixmap_priv *driver_priv;
 
 	bpp = pPix->drawable.bitsPerPixel;
 	if (bpp == 24)
 		bpp = 8;
 
-	offset = exaGetPixmapOffset(pPix);
+	driver_priv = exaGetPixmapDriverPrivate(pPix);
+
+	/* validate the pixmap somewhere */
+	if (driver_priv)
+		offset = driver_priv->mem->offset;
+	else
+		offset = exaGetPixmapOffset(pPix);
 
 	offset += info->fbLocation + pScrn->fbOffset;
 	pitch = exaGetPixmapPitch(pPix);
@@ -241,6 +255,8 @@ Bool RADEONGetPixmapOffsetCS(PixmapPtr pPix, uint32_t *pitch_offset)
 
 static unsigned long swapper_surfaces[6];
 
+#endif
+
 static Bool RADEONPrepareAccess(PixmapPtr pPix, int index)
 {
     RINFO_FROM_SCREEN(pPix->drawable.pScreen);
@@ -248,7 +264,28 @@ static Bool RADEONPrepareAccess(PixmapPtr pPix, int index)
     uint32_t offset = exaGetPixmapOffset(pPix);
     int bpp, soff;
     uint32_t size, flags;
+    struct radeon_exa_pixmap_priv *driver_priv;
+   
+    driver_priv = exaGetPixmapDriverPrivate(pPix);
+    if (driver_priv) {
 
+	if (driver_priv->mem) {
+	    int ret;
+
+	    RADEONCPFlushIndirect(pScrn, 0);
+	    /* flush IB */
+	    ret = radeon_map_memory(pScrn, driver_priv->mem);
+	    if (ret) {
+		FatalError("failed to map pixmap %d\n", ret);
+		return FALSE;
+	    }
+	    
+	    pPix->devPrivate.ptr = driver_priv->mem->map;
+	}
+	ErrorF("PA: driver priv %p %p\n", pPix->devPrivate.ptr, driver_priv);
+    }
+
+#if X_BYTE_ORDER == X_BIG_ENDIAN
     /* Front buffer is always set with proper swappers */
     if (offset == 0)
         return TRUE;
@@ -304,6 +341,7 @@ static Bool RADEONPrepareAccess(PixmapPtr pPix, int index)
     OUTREG(RADEON_SURFACE0_LOWER_BOUND + soff, offset);
     OUTREG(RADEON_SURFACE0_UPPER_BOUND + soff, offset + size - 1);
     swapper_surfaces[index] = offset;
+#endif
     return TRUE;
 }
 
@@ -313,7 +351,19 @@ static void RADEONFinishAccess(PixmapPtr pPix, int index)
     unsigned char *RADEONMMIO = info->MMIO;
     uint32_t offset = exaGetPixmapOffset(pPix);
     int soff;
+    struct radeon_exa_pixmap_priv *driver_priv;
 
+    driver_priv = exaGetPixmapDriverPrivate(pPix);
+
+    if (!driver_priv)
+	return;
+
+    if (driver_priv->mem) {
+	radeon_unmap_memory(pScrn, driver_priv->mem);
+	pPix->devPrivate.ptr = NULL;
+    }
+
+#if X_BYTE_ORDER == X_BIG_ENDIAN
     /* Front buffer is always set with proper swappers */
     if (offset == 0)
         return;
@@ -336,9 +386,92 @@ static void RADEONFinishAccess(PixmapPtr pPix, int index)
     OUTREG(RADEON_SURFACE0_LOWER_BOUND + soff, 0);
     OUTREG(RADEON_SURFACE0_UPPER_BOUND + soff, 0);
     swapper_surfaces[index] = 0;
+#endif /* X_BYTE_ORDER == X_BIG_ENDIAN */
 }
 
-#endif /* X_BYTE_ORDER == X_BIG_ENDIAN */
+
+
+
+void *RADEONEXACreatePixmap(ScreenPtr pScreen, int size, int align)
+{
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    RADEONInfoPtr info = RADEONPTR(pScrn);
+    struct radeon_exa_pixmap_priv *new_priv;
+
+    new_priv = xcalloc(1, sizeof(struct radeon_exa_pixmap_priv));
+    if (!new_priv)
+	return NULL;
+
+    if (size == 0)
+	return new_priv;
+
+    new_priv->mem = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, size,
+					   align, 0, "exa pixmap");
+ 
+    if (!new_priv->mem) {
+	xfree(new_priv);
+	return NULL;
+    }
+    
+    radeon_bind_memory(pScrn, new_priv->mem);
+    return new_priv;
+
+}
+
+static void RADEONEXADestroyPixmap(ScreenPtr pScreen, void *driverPriv)
+{
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    struct radeon_exa_pixmap_priv *driver_priv = driverPriv;
+    
+    if (!(driver_priv->flags & RADEON_PIXMAP_IS_FRONTBUFFER)) {
+	radeon_free_memory(pScrn, driver_priv->mem);
+
+    }
+    xfree(driverPriv);
+}
+
+static Bool RADEONEXAModifyPixmapHeader(PixmapPtr pPixmap, int width, int height,
+					int depth, int bitsPerPixel, int devKind,
+					pointer pPixData)
+{
+    ScreenPtr   pScreen = pPixmap->drawable.pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    RADEONInfoPtr info = RADEONPTR(pScrn);
+    struct radeon_exa_pixmap_priv *driver_priv;
+
+    driver_priv = exaGetPixmapDriverPrivate(pPixmap);
+    if (!driver_priv)
+	return FALSE;
+
+
+    //    if (info->drm_mode_setting && drmmode_is_rotate_pixmap(pScrn, pPixData, NULL)){
+
+    
+    //    }
+
+    if (pPixData == info->mm.front_buffer->map) {
+	driver_priv->flags |= RADEON_PIXMAP_IS_FRONTBUFFER;
+
+	driver_priv->mem = info->mm.front_buffer;
+	miModifyPixmapHeader(pPixmap, width, height, depth,
+                             bitsPerPixel, devKind, NULL);
+	return TRUE;
+    }
+    return FALSE;
+}
+
+static Bool RADEONEXAPixmapIsOffscreen(PixmapPtr pPix)
+{
+    struct radeon_exa_pixmap_priv *driver_priv;
+
+    driver_priv = exaGetPixmapDriverPrivate(pPix);
+
+    if (!driver_priv)
+       return FALSE;
+    if (driver_priv->mem)
+       return TRUE;
+    return FALSE;
+}
 
 #define ENTER_DRAW(x) TRACE
 #define LEAVE_DRAW(x) TRACE
@@ -391,6 +524,8 @@ static void RADEONFinishAccess(PixmapPtr pPix, int index)
 #undef OUT_RING_F
 
 #endif /* XF86DRI */
+
+
 
 /*
  * Once screen->off_screen_base is set, this function
