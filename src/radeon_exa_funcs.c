@@ -74,6 +74,9 @@ FUNC_NAME(RADEONSync)(ScreenPtr pScreen, int marker)
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     RADEONInfoPtr info = RADEONPTR(pScrn);
 
+    if (info->new_cs)
+	    return;
+
     TRACE;
 
     if (info->accel_state->exaMarkerSynced != marker) {
@@ -88,13 +91,17 @@ static void FUNC_NAME(Emit2DState)(ScrnInfoPtr pScrn, int op)
 {
     RADEONInfoPtr info = RADEONPTR(pScrn);
     uint32_t qwords;
+    int has_src;
     ACCEL_PREAMBLE();
 
     /* don't emit if no operation in progress */
     if (info->state_2d.op == 0 && op == 0)
 	return;
 
-    qwords = info->new_cs ? 14 : 10;
+    has_src = info->state_2d.src_pitch_offset || (info->new_cs && info->state_2d.src_bo_handle);
+
+    qwords = info->new_cs ? 11 : 9;
+    qwords += (has_src ? (info->new_cs ?  3 : 1) : 0);
     qwords += (info->ChipFamily <= CHIP_FAMILY_RV280 ? 3 : 2);
 
     BEGIN_ACCEL(qwords);
@@ -115,19 +122,16 @@ static void FUNC_NAME(Emit2DState)(ScrnInfoPtr pScrn, int op)
     OUT_ACCEL_REG(RADEON_DP_WRITE_MASK, info->state_2d.dp_write_mask);
     OUT_ACCEL_REG(RADEON_DP_CNTL, info->state_2d.dp_cntl);
 
-    if (info->new_cs) {
-	OUT_ACCEL_REG(RADEON_DST_PITCH_OFFSET, info->state_2d.dst_pitch_offset);
-	OUT_RELOC(info->mm.front_buffer->kernel_bo_handle);
-    } else
-	OUT_ACCEL_REG(RADEON_DST_PITCH_OFFSET, info->state_2d.dst_pitch_offset);
+    OUT_ACCEL_REG(RADEON_DST_PITCH_OFFSET, info->state_2d.dst_pitch_offset);
+    if (info->new_cs)
+	OUT_RELOC(info->state_2d.dst_bo_handle);
 
-    if (info->new_cs) {
-	/* need to emit NOPs here with relocation for dst pitch offset */
-	OUT_ACCEL_REG(RADEON_SRC_PITCH_OFFSET, info->state_2d.src_pitch_offset);
-	OUT_RELOC(info->mm.front_buffer->kernel_bo_handle);
-    } else
-	OUT_ACCEL_REG(RADEON_SRC_PITCH_OFFSET, info->state_2d.src_pitch_offset);
-    /* need to emit NOPs here with relocation for src pitch offset */
+    if (has_src) {
+	    OUT_ACCEL_REG(RADEON_SRC_PITCH_OFFSET, info->state_2d.src_pitch_offset);
+	    if (info->new_cs)
+		    OUT_RELOC(info->state_2d.src_bo_handle);
+	    
+    }
     FINISH_ACCEL();
 
     if (op)
@@ -141,6 +145,7 @@ FUNC_NAME(RADEONPrepareSolid)(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
 {
     RINFO_FROM_SCREEN(pPix->drawable.pScreen);
     uint32_t datatype, dst_pitch_offset;
+    struct radeon_exa_pixmap_priv *driver_priv;
     ACCEL_PREAMBLE();
 
     TRACE;
@@ -150,13 +155,8 @@ FUNC_NAME(RADEONPrepareSolid)(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
     if (!RADEONGetDatatypeBpp(pPix->drawable.bitsPerPixel, &datatype))
 	RADEON_FALLBACK(("RADEONGetDatatypeBpp failed\n"));
 
-    if (info->new_cs) {
-	if (!RADEONGetPixmapOffsetCS(pPix, &dst_pitch_offset))
-	    RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch failed\n"));
-    } else {
-	if (!RADEONGetPixmapOffsetPitch(pPix, &dst_pitch_offset))
-	    RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch failed\n"));
-    }
+    if (!RADEONGetPixmapOffsetPitch(pPix, &dst_pitch_offset))
+        RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch failed\n"));
 
     RADEON_SWITCH_TO_2D();
 
@@ -176,7 +176,13 @@ FUNC_NAME(RADEONPrepareSolid)(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
     info->state_2d.dp_write_mask = pm;
     info->state_2d.dst_pitch_offset = dst_pitch_offset;
     info->state_2d.src_pitch_offset = 0;
+    info->state_2d.src_bo_handle = 0;
 
+    driver_priv = exaGetPixmapDriverPrivate(pPix);
+    if (driver_priv)
+      info->state_2d.dst_bo_handle = driver_priv->mem->kernel_bo_handle;
+    else
+      info->state_2d.dst_bo_handle = info->mm.front_buffer->kernel_bo_handle;
     FUNC_NAME(Emit2DState)(pScrn, RADEON_2D_EXA_SOLID);
 
     return TRUE;
@@ -247,6 +253,7 @@ FUNC_NAME(RADEONDoPrepareCopy)(ScrnInfoPtr pScrn, uint32_t src_pitch_offset,
     info->state_2d.src_pitch_offset = src_pitch_offset;
     info->state_2d.default_sc_bottom_right =  (RADEON_DEFAULT_SC_RIGHT_MAX
 						| RADEON_DEFAULT_SC_BOTTOM_MAX);
+
     FUNC_NAME(Emit2DState)(pScrn, RADEON_2D_EXA_COPY);
 }
 
@@ -258,7 +265,7 @@ FUNC_NAME(RADEONPrepareCopy)(PixmapPtr pSrc,   PixmapPtr pDst,
 {
     RINFO_FROM_SCREEN(pDst->drawable.pScreen);
     uint32_t datatype, src_pitch_offset, dst_pitch_offset;
-
+    struct radeon_exa_pixmap_priv *driver_priv;
     TRACE;
 
     RADEON_FALLBACK("ASS");
@@ -271,17 +278,22 @@ FUNC_NAME(RADEONPrepareCopy)(PixmapPtr pSrc,   PixmapPtr pDst,
     if (!RADEONGetDatatypeBpp(pDst->drawable.bitsPerPixel, &datatype))
 	RADEON_FALLBACK(("RADEONGetDatatypeBpp failed\n"));
 
-    if (info->new_cs) {
-	if (!RADEONGetPixmapOffsetCS(pSrc, &src_pitch_offset))
-	    RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch source failed\n"));
-	if (!RADEONGetPixmapOffsetCS(pDst, &dst_pitch_offset))
-	    RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch dest failed\n"));
-    } else {
-	if (!RADEONGetPixmapOffsetPitch(pSrc, &src_pitch_offset))
-	    RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch source failed\n"));
-	if (!RADEONGetPixmapOffsetPitch(pDst, &dst_pitch_offset))
-	    RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch dest failed\n"));
-    }
+    if (!RADEONGetPixmapOffsetPitch(pSrc, &src_pitch_offset))
+        RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch source failed\n"));
+    if (!RADEONGetPixmapOffsetPitch(pDst, &dst_pitch_offset))
+        RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch dest failed\n"));
+
+    driver_priv = exaGetPixmapDriverPrivate(pSrc);
+    if (driver_priv)
+      info->state_2d.src_bo_handle = driver_priv->mem->kernel_bo_handle;
+    else
+      info->state_2d.src_bo_handle = info->mm.front_buffer->kernel_bo_handle;
+
+    driver_priv = exaGetPixmapDriverPrivate(pDst);
+    if (driver_priv)
+      info->state_2d.dst_bo_handle = driver_priv->mem->kernel_bo_handle;
+    else
+      info->state_2d.dst_bo_handle = info->mm.front_buffer->kernel_bo_handle;
 
 
     FUNC_NAME(RADEONDoPrepareCopy)(pScrn, src_pitch_offset, dst_pitch_offset,
@@ -356,21 +368,17 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
     if (bpp < 8)
 	return FALSE;
 
-    if (info->drm_mode_setting)
+    if (info->new_cs)
 	    dst = info->mm.front_buffer->map + exaGetPixmapOffset(pDst);
 
 #ifdef ACCEL_CP
     if (!info->directRenderingEnabled && !info->drm_mode_setting)
         goto fallback;
 
-    if (!info->new_cs) {
-        if (RADEONGetPixmapOffsetPitch(pDst, &dst_pitch_off))
-	  goto fallback;
-    } else {
-      if (RADEONGetPixmapOffsetCS(pDst, &dst_pitch_off))
-	  goto fallback;
-    }
+    if (RADEONGetPixmapOffsetPitch(pDst, &dst_pitch_off))
+        goto fallback;
 
+    if (!info->new_cs)
     {
         uint8_t *buf;
 	int cpp = bpp / 8;

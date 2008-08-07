@@ -1054,6 +1054,7 @@ static Bool FUNC_NAME(R300TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
     int w = pPict->pDrawable->width;
     int h = pPict->pDrawable->height;
     int i, pixel_shift;
+    struct radeon_exa_pixmap_priv *driver_priv;
     int qwords;
     ACCEL_PREAMBLE();
 
@@ -1154,9 +1155,15 @@ static Bool FUNC_NAME(R300TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
     OUT_ACCEL_REG(R300_TX_FORMAT0_0 + (unit * 4), txformat0);
     OUT_ACCEL_REG(R300_TX_FORMAT1_0 + (unit * 4), txformat1);
     OUT_ACCEL_REG(R300_TX_FORMAT2_0 + (unit * 4), txpitch);
+
+    driver_priv = exaGetPixmapDriverPrivate(pPix);
     if (info->new_cs) {
-        OUT_ACCEL_REG(R300_TX_OFFSET_0 + (unit * 4), txoffset);
-	OUT_RELOC(info->mm.front_buffer->kernel_bo_handle);
+        uint32_t handle = 0;
+	if (driver_priv) 
+	   handle = driver_priv->mem->kernel_bo_handle;
+
+        OUT_ACCEL_REG(R300_TX_OFFSET_0 + (unit * 4), driver_priv ? 0 : txoffset);
+	OUT_RELOC(handle);
     } else {
         txoffset += info->fbLocation + pScrn->fbOffset;
         OUT_ACCEL_REG(R300_TX_OFFSET_0 + (unit * 4), txoffset);
@@ -1271,6 +1278,7 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
     uint32_t blendcntl;
     int pixel_shift;
     int qwords;
+    struct radeon_exa_pixmap_priv *driver_priv;
     ACCEL_PREAMBLE();
 
     TRACE;
@@ -1958,8 +1966,11 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
     qwords = info->new_cs ? 5 : 3;
     BEGIN_ACCEL(qwords);
     if (info->new_cs) {
-        OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, dst_offset);
-	OUT_RELOC(info->mm.front_buffer->kernel_bo_handle);
+        driver_priv = exaGetPixmapDriverPrivate(pDst);
+	assert(driver_priv);
+
+        OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, 0);
+	OUT_RELOC(driver_priv->mem->kernel_bo_handle);
     } else {
         dst_offset += info->fbLocation + pScrn->fbOffset;
         OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, dst_offset);

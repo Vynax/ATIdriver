@@ -444,6 +444,8 @@ struct radeon_2d_state {
     uint32_t dp_src_frgd_clr;
     uint32_t dp_src_bkgd_clr;
     uint32_t default_sc_bottom_right;
+    uint32_t dst_bo_handle;
+    uint32_t src_bo_handle;
 };
     
 #ifdef XF86DRI

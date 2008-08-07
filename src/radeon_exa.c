@@ -178,6 +178,8 @@ static Bool RADEONGetOffsetPitch(PixmapPtr pPix, int bpp, uint32_t *pitch_offset
 	pitch = pitch >> 6;
 	*pitch_offset = (pitch << 22) | (offset >> 10);
 
+	ErrorF("pitch is %x %x\n", pitch << 6, *pitch_offset);
+
 	/* If it's the front buffer, we've got to note that it's tiled? */
 	if (RADEONPixmapIsColortiled(pPix))
 		*pitch_offset |= RADEON_DST_TILE_MACRO;
@@ -198,12 +200,15 @@ Bool RADEONGetPixmapOffsetPitch(PixmapPtr pPix, uint32_t *pitch_offset)
 	driver_priv = exaGetPixmapDriverPrivate(pPix);
 
 	/* validate the pixmap somewhere */
-	if (driver_priv)
+	if (info->new_cs)
+	    offset = 0;
+	else { 
+	    if (driver_priv)
 		offset = driver_priv->mem->offset;
-	else
+	    else
 		offset = exaGetPixmapOffset(pPix);
-
-	offset += info->fbLocation + pScrn->fbOffset;
+		offset += info->fbLocation + pScrn->fbOffset;
+	}
 	pitch = exaGetPixmapPitch(pPix);
 
 	return RADEONGetOffsetPitch(pPix, bpp, pitch_offset, offset, pitch);
@@ -273,16 +278,31 @@ static Bool RADEONPrepareAccess(PixmapPtr pPix, int index)
 	    int ret;
 
 	    RADEONCPFlushIndirect(pScrn, 0);
-	    /* flush IB */
-	    ret = radeon_map_memory(pScrn, driver_priv->mem);
-	    if (ret) {
-		FatalError("failed to map pixmap %d\n", ret);
-		return FALSE;
+
+	    /* wait for CPU domain */
+	    {
+		struct drm_radeon_gem_set_domain dom_args;
+
+		dom_args.handle = driver_priv->mem->kernel_bo_handle;
+		dom_args.read_domains = RADEON_GEM_DOMAIN_CPU;
+		dom_args.write_domain = 0;
+
+		drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_SET_DOMAIN,
+				    &dom_args, sizeof(dom_args));
 	    }
-	    
+
+	    /* flush IB */
+	    if (!(driver_priv->flags & RADEON_PIXMAP_IS_FRONTBUFFER)) {
+		ret = radeon_map_memory(pScrn, driver_priv->mem);
+		if (ret) {
+		    FatalError("failed to map pixmap %d\n", ret);
+		    return FALSE;
+		}
+	    }
+
 	    pPix->devPrivate.ptr = driver_priv->mem->map;
 	}
-	ErrorF("PA: driver priv %p %p\n", pPix->devPrivate.ptr, driver_priv);
+	//	ErrorF("PA: driver priv %p %p\n", pPix->devPrivate.ptr, driver_priv);
     }
 
 #if X_BYTE_ORDER == X_BIG_ENDIAN
@@ -355,14 +375,15 @@ static void RADEONFinishAccess(PixmapPtr pPix, int index)
 
     driver_priv = exaGetPixmapDriverPrivate(pPix);
 
-    if (!driver_priv)
-	return;
+    if (driver_priv) {
 
-    if (driver_priv->mem) {
-	radeon_unmap_memory(pScrn, driver_priv->mem);
-	pPix->devPrivate.ptr = NULL;
+        if (driver_priv->mem) {
+	    if (!(driver_priv->flags & RADEON_PIXMAP_IS_FRONTBUFFER)) {
+		radeon_unmap_memory(pScrn, driver_priv->mem);
+	    }
+	    pPix->devPrivate.ptr = NULL;
+	}
     }
-
 #if X_BYTE_ORDER == X_BIG_ENDIAN
     /* Front buffer is always set with proper swappers */
     if (offset == 0)
@@ -389,9 +410,6 @@ static void RADEONFinishAccess(PixmapPtr pPix, int index)
 #endif /* X_BYTE_ORDER == X_BIG_ENDIAN */
 }
 
-
-
-
 void *RADEONEXACreatePixmap(ScreenPtr pScreen, int size, int align)
 {
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
@@ -410,10 +428,12 @@ void *RADEONEXACreatePixmap(ScreenPtr pScreen, int size, int align)
  
     if (!new_priv->mem) {
 	xfree(new_priv);
+	ErrorF("Failed to alloc memory\n");
 	return NULL;
     }
     
-    radeon_bind_memory(pScrn, new_priv->mem);
+    ErrorF("new priv is %p\n", new_priv);
+    //    radeon_bind_memory(pScrn, new_priv->mem);
     return new_priv;
 
 }
@@ -470,6 +490,7 @@ static Bool RADEONEXAPixmapIsOffscreen(PixmapPtr pPix)
        return FALSE;
     if (driver_priv->mem)
        return TRUE;
+    assert(0);
     return FALSE;
 }
 

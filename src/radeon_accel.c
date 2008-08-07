@@ -1041,6 +1041,7 @@ RADEONHostDataBlit(
     ret = ( uint8_t* )&__head[__count];
 
     __count += dwords;
+
     ADVANCE_RING();
 
     *y += *hpass;

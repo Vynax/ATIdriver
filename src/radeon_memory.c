@@ -143,8 +143,8 @@ struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int si
     }
 
     mem->kernel_bo_handle = args.handle;
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO,	
-	       "%s allocated %d with handle %x\n", mem->name, mem->size, mem->kernel_bo_handle);
+    //    xf86DrvMsg(pScrn->scrnIndex, X_INFO,	
+    //	       "%s allocated %d with handle %x\n", mem->name, mem->size, mem->kernel_bo_handle);
 
     /* add to VRAM linked list for now */
 
@@ -211,6 +211,9 @@ int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
     RADEONInfoPtr info = RADEONPTR(pScrn);
     int ret;
 
+    assert(!mem->map);
+
+
     args.handle = mem->kernel_bo_handle;
     args.size = mem->size;
     ret = drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_MMAP, &args, sizeof(args));
@@ -223,8 +226,11 @@ int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 
 void radeon_unmap_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 {
-    munmap(mem->map, mem->size);
-    mem->map = NULL;
+    assert(mem->map);
+    if (mem->map) {
+        munmap(mem->map, mem->size);
+        mem->map = NULL;
+    }
 }
 
 /* Okay radeon
@@ -331,7 +337,8 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     fb_size_bytes = screen_size + (remain_size_bytes - info->textureSize);
     ErrorF("fb size is %dK %dK\n", fb_size_bytes / 1024, total_size_bytes / 1024);
 
-    fb_size_bytes = 64 * 1024 * 1024;
+    if (info->new_cs)
+        fb_size_bytes = screen_size;
     info->mm.front_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, fb_size_bytes, 0, 1, "Front Buffer + EXA", 1);
     if (!info->mm.front_buffer) {
 	return FALSE;
@@ -352,14 +359,16 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 	ErrorF("Failed to map front buffer memory\n");
     }
 #endif
-    info->exa->memoryBase = info->mm.front_buffer->map;
-    info->exa->offScreenBase = screen_size;
-    info->exa->memorySize = fb_size_bytes;
 
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-	       "Will use %ld kb for X Server offscreen at offset 0x%08lx\n",
-	       (info->exa->memorySize - info->exa->offScreenBase) /
-	       1024, info->exa->offScreenBase);
+    if (!info->new_cs) {
+        info->exa->memoryBase = info->mm.front_buffer->map;
+        info->exa->offScreenBase = screen_size;
+        info->exa->memorySize = fb_size_bytes;
+        xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		   "Will use %ld kb for X Server offscreen at offset 0x%08lx\n",
+		   (info->exa->memorySize - info->exa->offScreenBase) /
+		   1024, info->exa->offScreenBase);
+    }
 
     if (info->directRenderingEnabled) {
 	info->textureSize /= 2;
