@@ -423,13 +423,21 @@ static void
 radeon_update_screen_private(ScrnInfoPtr pScrn, RADEONSAREAPrivPtr sarea)
 {
     RADEONInfoPtr  info  = RADEONPTR(pScrn);
+    RADEONDRIPtr pRADEONDRI;
 
+    pRADEONDRI                    = (RADEONDRIPtr)info->pDRIInfo->devPrivate;
     info->pDRIInfo->frameBufferPhysicalAddress = (char *) info->LinearAddr;
     info->pDRIInfo->frameBufferStride = pScrn->displayWidth * info->CurrentLayout.pixel_bytes;
     info->pDRIInfo->frameBufferSize = ROUND_TO_PAGE(pScrn->displayWidth * pScrn->virtualY * info->CurrentLayout.pixel_bytes);
 #if DRI_DRIVER_FRAMEBUFFER_MAP
     info->pDRIInfo->hFrameBuffer = info->fb_map_handle;
 #endif
+    /* overload these */
+    pRADEONDRI->gartTexHandle = info->mm.gart_texture_buffer->kernel_bo_handle;
+    pRADEONDRI->textureOffset = info->mm.texture_buffer->kernel_bo_handle;
+    pRADEONDRI->frontOffset = info->mm.front_buffer->kernel_bo_handle;
+    pRADEONDRI->backOffset = info->mm.back_buffer->kernel_bo_handle;
+    pRADEONDRI->depthOffset = info->mm.depth_buffer->kernel_bo_handle;
 }
 
 static Bool
