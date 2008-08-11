@@ -1210,7 +1210,8 @@ radeon_legacy_free_memory(ScrnInfoPtr pScrn,
 /* radeon_memory.c */
 extern Bool radeon_bind_all_memory(ScrnInfoPtr pScrn);
 extern Bool radeon_unbind_all_memory(ScrnInfoPtr pScrn);
-extern struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int size, int alignment, Bool no_backing_store, char *name);
+extern struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int size, int alignment, Bool no_backing_store, char *name, 
+						    int need_bind);
 uint32_t radeon_create_new_fb(ScrnInfoPtr pScrn, int width, int height, int *pitch);
 int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
 void radeon_unmap_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);

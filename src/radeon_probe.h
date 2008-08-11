@@ -164,6 +164,7 @@ struct radeon_memory {
     uint32_t alignment;
     uint32_t kernel_bo_handle;
     uint32_t kernel_name;
+    Bool vt_bind;
 };
 
 typedef struct _RADEONCrtcPrivateRec {

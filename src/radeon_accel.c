@@ -690,7 +690,7 @@ drmBufPtr RADEONGEMGetBuffer(ScrnInfoPtr pScrn)
     int ret;
 
     info->mm.gem_ib_memory = radeon_allocate_memory(pScrn, RADEON_POOL_GART, RADEON_BUFFER_SIZE,
-						 0, 0, "Accel IB");
+						    0, 0, "Accel IB", 0);
 
     if (!info->mm.gem_ib_memory) {
 	ErrorF("Unable to map allocate IB\n");

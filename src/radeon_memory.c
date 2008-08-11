@@ -105,7 +105,8 @@ void radeon_free_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 	return;
 }
 
-struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int size, int alignment, Bool no_backing_store, char *name)
+struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int size, int alignment, Bool no_backing_store, char *name,
+					     int static_alloc)
 {
     RADEONInfoPtr  info   = RADEONPTR(pScrn);	
     struct drm_radeon_gem_create args;
@@ -125,7 +126,7 @@ struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int si
     mem->size = size;
     mem->pool = pool;
     mem->next = mem->prev = NULL;
-
+    mem->vt_bind = static_alloc;
     args.size = size;
     args.alignment = alignment;
     if (pool == RADEON_POOL_VRAM)
@@ -164,10 +165,10 @@ Bool radeon_bind_all_memory(ScrnInfoPtr pScrn)
     for (i = 0; i < 2; i++) {
 	for (mem = info->mm.bo_list[i]; mem != NULL;
 	     mem = mem->next) {
-	    if (!radeon_bind_memory(pScrn, mem)) {
-		FatalError("Couldn't bind %s\n", mem->name);
-		
-	    }
+	    if (mem->vt_bind)
+		if (!radeon_bind_memory(pScrn, mem)) {
+		    FatalError("Couldn't bind %s\n", mem->name);
+		}
 	}
     }
     return TRUE;
@@ -182,7 +183,8 @@ Bool radeon_unbind_all_memory(ScrnInfoPtr pScrn)
     for (i = 0; i < 2; i++) {
 	for (mem = info->mm.bo_list[i]; mem != NULL;
 	     mem = mem->next) {
-	    radeon_unbind_memory(pScrn, mem);
+	    if (mem->vt_bind)
+		radeon_unbind_memory(pScrn, mem);
 	}
     }
     return TRUE;
@@ -259,7 +261,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 
 	for (c = 0; c < xf86_config->num_crtc; c++) {
 	    /* cursor objects */
-	    info->mm.cursor[c] = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, cursor_size, 0, 1, "Cursor");
+	    info->mm.cursor[c] = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, cursor_size, 0, 1, "Cursor", 1);
 	    if (!info->mm.cursor[c]) {
 		return FALSE;
 	    }
@@ -298,7 +300,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 
     if (info->directRenderingEnabled) {
 	info->backPitch = pScrn->displayWidth;
-	info->mm.back_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, screen_size, 0, 1, "Back Buffer");
+	info->mm.back_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, screen_size, 0, 1, "Back Buffer", 1);
 	if (!info->mm.back_buffer) {
 	    return FALSE;
 	}
@@ -309,7 +311,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 	{
 	    int depthCpp = (info->depthBits - 8) / 4;
 	    int depth_size = RADEON_ALIGN(pScrn->virtualY, 16) * info->depthPitch * depthCpp;
-	    info->mm.depth_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, depth_size, 0, 1, "Depth Buffer");
+	    info->mm.depth_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, depth_size, 0, 1, "Depth Buffer", 1);
 	    if (!info->mm.depth_buffer) {
 		return FALSE;
 	    }
@@ -330,7 +332,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     ErrorF("fb size is %dK %dK\n", fb_size_bytes / 1024, total_size_bytes / 1024);
 
     fb_size_bytes = 64 * 1024 * 1024;
-    info->mm.front_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, fb_size_bytes, 0, 1, "Front Buffer + EXA");
+    info->mm.front_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, fb_size_bytes, 0, 1, "Front Buffer + EXA", 1);
     if (!info->mm.front_buffer) {
 	return FALSE;
     }
@@ -362,12 +364,11 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     if (info->directRenderingEnabled) {
 	/* allocate an object for all the textures */
 	info->textureSize /= 2;
-	info->mm.texture_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, info->textureSize, 0, 1, "Texture Buffer");
+	info->mm.texture_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, info->textureSize, 0, 1, "Texture Buffer", 1);
 	if (!info->mm.texture_buffer) {
 	    return FALSE;
 	}
 	radeon_bind_memory(pScrn, info->mm.texture_buffer);
-	
     }
 	
     if (info->drm_mode_setting) {
@@ -385,7 +386,7 @@ Bool radeon_setup_gart_mem(ScreenPtr pScreen)
     info->mm.gart_texture_buffer =
 	radeon_allocate_memory(pScrn, RADEON_POOL_GART,
 			       info->gartTexMapSize,
-			       0, 1, "GART texture buffers");
+			       0, 1, "GART texture buffers", 1);
     
     if (!info->mm.gart_texture_buffer) {
 	return FALSE;
