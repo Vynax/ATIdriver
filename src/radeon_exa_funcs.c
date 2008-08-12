@@ -98,7 +98,7 @@ static void FUNC_NAME(Emit2DState)(ScrnInfoPtr pScrn, int op)
     if (info->state_2d.op == 0 && op == 0)
 	return;
 
-    has_src = info->state_2d.src_pitch_offset || (info->new_cs && info->state_2d.src_bo_handle);
+    has_src = info->state_2d.src_pitch_offset || (info->new_cs && info->state_2d.src_bo);
 
     qwords = info->new_cs ? 11 : 9;
     qwords += (has_src ? (info->new_cs ?  3 : 1) : 0);
@@ -124,12 +124,12 @@ static void FUNC_NAME(Emit2DState)(ScrnInfoPtr pScrn, int op)
 
     OUT_ACCEL_REG(RADEON_DST_PITCH_OFFSET, info->state_2d.dst_pitch_offset);
     if (info->new_cs)
-	OUT_RELOC(info->state_2d.dst_bo_handle);
+	OUT_RELOC(info->state_2d.dst_bo);
 
     if (has_src) {
 	    OUT_ACCEL_REG(RADEON_SRC_PITCH_OFFSET, info->state_2d.src_pitch_offset);
 	    if (info->new_cs)
-		    OUT_RELOC(info->state_2d.src_bo_handle);
+		    OUT_RELOC(info->state_2d.src_bo);
 	    
     }
     FINISH_ACCEL();
@@ -176,13 +176,12 @@ FUNC_NAME(RADEONPrepareSolid)(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
     info->state_2d.dp_write_mask = pm;
     info->state_2d.dst_pitch_offset = dst_pitch_offset;
     info->state_2d.src_pitch_offset = 0;
-    info->state_2d.src_bo_handle = 0;
+    info->state_2d.src_bo = NULL;
 
     driver_priv = exaGetPixmapDriverPrivate(pPix);
     if (driver_priv)
-      info->state_2d.dst_bo_handle = driver_priv->mem->kernel_bo_handle;
-    else
-      info->state_2d.dst_bo_handle = info->mm.front_buffer->kernel_bo_handle;
+      info->state_2d.dst_bo = driver_priv->bo;
+
     FUNC_NAME(Emit2DState)(pScrn, RADEON_2D_EXA_SOLID);
 
     return TRUE;
@@ -285,16 +284,11 @@ FUNC_NAME(RADEONPrepareCopy)(PixmapPtr pSrc,   PixmapPtr pDst,
 
     driver_priv = exaGetPixmapDriverPrivate(pSrc);
     if (driver_priv)
-      info->state_2d.src_bo_handle = driver_priv->mem->kernel_bo_handle;
-    else
-      info->state_2d.src_bo_handle = info->mm.front_buffer->kernel_bo_handle;
+      info->state_2d.src_bo = driver_priv->bo;
 
     driver_priv = exaGetPixmapDriverPrivate(pDst);
     if (driver_priv)
-      info->state_2d.dst_bo_handle = driver_priv->mem->kernel_bo_handle;
-    else
-      info->state_2d.dst_bo_handle = info->mm.front_buffer->kernel_bo_handle;
-
+      info->state_2d.dst_bo = driver_priv->bo;
 
     FUNC_NAME(RADEONDoPrepareCopy)(pScrn, src_pitch_offset, dst_pitch_offset,
 				   datatype, rop, planemask);
@@ -592,9 +586,8 @@ Bool FUNC_NAME(RADEONDrawInit)(ScreenPtr pScreen)
     info->accel_state->exa->pixmapPitchAlign = 64;
 
     if (info->drm_mm) {
-      info->exa->flags |= EXA_HANDLES_PIXMAPS;
-      //      info->exa->PrepareAccess = RADEONEXAPrepareAccess;
-      //      info->exa->FinishAccess = RADEONEXAFinishAccess;
+      info->accel_state->exa->flags |= EXA_HANDLES_PIXMAPS;
+    } else {
     }
 
 #ifdef RENDER
@@ -646,7 +639,7 @@ Bool FUNC_NAME(RADEONDrawInit)(ScreenPtr pScreen)
         info->exa->DestroyPixmap = RADEONEXADestroyPixmap;
         info->exa->PixmapIsOffscreen = RADEONEXAPixmapIsOffscreen;
         info->exa->ModifyPixmapHeader = RADEONEXAModifyPixmapHeader;
-    } else 
+    }
 #endif
 
 

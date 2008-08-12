@@ -3682,6 +3682,8 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 		info->directRenderingEnabled = FALSE;		
 	    }
 	}
+	info->bufmgr = radeon_bufmgr_exa_init(pScrn);
+	
 	radeon_setup_kernel_mem(pScreen);
 	front_ptr = info->mm.front_buffer->map;
 	pScrn->fbOffset = info->mm.front_buffer->offset;

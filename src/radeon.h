@@ -87,6 +87,7 @@
 #include "xf86Crtc.h"
 #include "X11/Xatom.h"
 
+#include "radeon_bufmgr_exa.h"
 				/* Render support */
 #ifdef RENDER
 #include "picturestr.h"
@@ -444,8 +445,8 @@ struct radeon_2d_state {
     uint32_t dp_src_frgd_clr;
     uint32_t dp_src_bkgd_clr;
     uint32_t default_sc_bottom_right;
-    uint32_t dst_bo_handle;
-    uint32_t src_bo_handle;
+    dri_bo *dst_bo;
+    dri_bo *src_bo;
 };
     
 #ifdef XF86DRI
@@ -955,6 +956,7 @@ typedef struct {
     drmmode_rec drmmode;
 #endif
 
+    dri_bufmgr *bufmgr;
 } RADEONInfoRec, *RADEONInfoPtr;
 
 #define RADEONWaitForFifo(pScrn, entries)				\
@@ -1376,10 +1378,7 @@ do {									\
  is in VRAM */
 #define OUT_RING_RELOC(x)						       \
   do {								       \
-    OUT_RING(CP_PACKET3(RADEON_CP_PACKET3_NOP, 2));		       \
-    OUT_RING(x);						       \
-    OUT_RING(RADEON_GEM_DOMAIN_VRAM);				       \
-    OUT_RING(0);						       \
+    radeon_bufmgr_exa_emit_reloc(x, __head, &__count);		       \
   } while(0)
 
 

@@ -666,6 +666,9 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     info->indirectBuffer->used = 0;
     info->indirectBuffer->total -= 16*4;
 
+    if (info->bufmgr)
+      radeon_bufmgr_post_submit(info->bufmgr);
+
     /* copy some state into the buffer now - we need to add 2D state to each
        buffer as the kernel needs to use the blit engine to move stuff around */
     if (info->reemit_current2d)

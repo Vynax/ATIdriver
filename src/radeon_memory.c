@@ -220,7 +220,7 @@ int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 
     if (!ret)
 	mem->map = (void *)(unsigned long)args.addr_ptr;
-    //ErrorF("Mapped %s size %ld at %ld %p\n", mem->name, mem->size, mem->offset, mem->map);
+    //    ErrorF("Mapped %s size %ld at %x %p\n", mem->name, mem->size, mem->offset, mem->map);
     return ret;
 }
 
@@ -335,10 +335,11 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     /* allocate an object for all the EXA bits */
     /* shove EXA + frontbuffer together until we have EXA pixmap hooks */
     fb_size_bytes = screen_size + (remain_size_bytes - info->textureSize);
-    ErrorF("fb size is %dK %dK\n", fb_size_bytes / 1024, total_size_bytes / 1024);
 
     if (info->new_cs)
         fb_size_bytes = screen_size;
+    ErrorF("fb size is %dK %dK\n", fb_size_bytes / 1024, total_size_bytes / 1024);
+
     info->mm.front_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, fb_size_bytes, 0, 1, "Front Buffer + EXA", 1);
     if (!info->mm.front_buffer) {
 	return FALSE;

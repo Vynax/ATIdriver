@@ -1159,11 +1159,8 @@ static Bool FUNC_NAME(R300TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
     driver_priv = exaGetPixmapDriverPrivate(pPix);
     if (info->new_cs) {
         uint32_t handle = 0;
-	if (driver_priv) 
-	   handle = driver_priv->mem->kernel_bo_handle;
-
         OUT_ACCEL_REG(R300_TX_OFFSET_0 + (unit * 4), driver_priv ? 0 : txoffset);
-	OUT_RELOC(handle);
+	OUT_RELOC(driver_priv->bo);
     } else {
         txoffset += info->fbLocation + pScrn->fbOffset;
         OUT_ACCEL_REG(R300_TX_OFFSET_0 + (unit * 4), txoffset);
@@ -1970,7 +1967,7 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 	assert(driver_priv);
 
         OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, 0);
-	OUT_RELOC(driver_priv->mem->kernel_bo_handle);
+	OUT_RELOC(driver_priv->bo);
     } else {
         dst_offset += info->fbLocation + pScrn->fbOffset;
         OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, dst_offset);

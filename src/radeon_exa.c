@@ -49,7 +49,7 @@
 
 /* quick hacks lolz */
 struct radeon_exa_pixmap_priv {
-    struct radeon_memory *mem;
+    dri_bo *bo;
     int flags;
 };
 
@@ -178,8 +178,6 @@ static Bool RADEONGetOffsetPitch(PixmapPtr pPix, int bpp, uint32_t *pitch_offset
 	pitch = pitch >> 6;
 	*pitch_offset = (pitch << 22) | (offset >> 10);
 
-	ErrorF("pitch is %x %x\n", pitch << 6, *pitch_offset);
-
 	/* If it's the front buffer, we've got to note that it's tiled? */
 	if (RADEONPixmapIsColortiled(pPix))
 		*pitch_offset |= RADEON_DST_TILE_MACRO;
@@ -204,7 +202,7 @@ Bool RADEONGetPixmapOffsetPitch(PixmapPtr pPix, uint32_t *pitch_offset)
 	    offset = 0;
 	else { 
 	    if (driver_priv)
-		offset = driver_priv->mem->offset;
+		offset = driver_priv->bo->offset;
 	    else
 		offset = exaGetPixmapOffset(pPix);
 		offset += info->fbLocation + pScrn->fbOffset;
@@ -274,35 +272,24 @@ static Bool RADEONPrepareAccess(PixmapPtr pPix, int index)
     driver_priv = exaGetPixmapDriverPrivate(pPix);
     if (driver_priv) {
 
-	if (driver_priv->mem) {
+	if (driver_priv->bo) {
 	    int ret;
 
 	    RADEONCPFlushIndirect(pScrn, 0);
 
-	    /* wait for CPU domain */
-	    {
-		struct drm_radeon_gem_set_domain dom_args;
-
-		dom_args.handle = driver_priv->mem->kernel_bo_handle;
-		dom_args.read_domains = RADEON_GEM_DOMAIN_CPU;
-		dom_args.write_domain = 0;
-
-		drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_SET_DOMAIN,
-				    &dom_args, sizeof(dom_args));
-	    }
+	    radeon_bufmgr_exa_wait_rendering(driver_priv->bo);
 
 	    /* flush IB */
 	    if (!(driver_priv->flags & RADEON_PIXMAP_IS_FRONTBUFFER)) {
-		ret = radeon_map_memory(pScrn, driver_priv->mem);
+		ret = dri_bo_map(driver_priv->bo, 1);
 		if (ret) {
 		    FatalError("failed to map pixmap %d\n", ret);
 		    return FALSE;
 		}
 	    }
 
-	    pPix->devPrivate.ptr = driver_priv->mem->map;
+	    pPix->devPrivate.ptr = driver_priv->bo->virtual;
 	}
-	//	ErrorF("PA: driver priv %p %p\n", pPix->devPrivate.ptr, driver_priv);
     }
 
 #if X_BYTE_ORDER == X_BIG_ENDIAN
@@ -377,13 +364,14 @@ static void RADEONFinishAccess(PixmapPtr pPix, int index)
 
     if (driver_priv) {
 
-        if (driver_priv->mem) {
+        if (driver_priv->bo) {
 	    if (!(driver_priv->flags & RADEON_PIXMAP_IS_FRONTBUFFER)) {
-		radeon_unmap_memory(pScrn, driver_priv->mem);
+		dri_bo_unmap(driver_priv->bo);
 	    }
-	    pPix->devPrivate.ptr = NULL;
 	}
     }
+    pPix->devPrivate.ptr = NULL;
+
 #if X_BYTE_ORDER == X_BIG_ENDIAN
     /* Front buffer is always set with proper swappers */
     if (offset == 0)
@@ -423,17 +411,14 @@ void *RADEONEXACreatePixmap(ScreenPtr pScreen, int size, int align)
     if (size == 0)
 	return new_priv;
 
-    new_priv->mem = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, size,
-					   align, 0, "exa pixmap");
- 
-    if (!new_priv->mem) {
+    new_priv->bo = dri_bo_alloc(info->bufmgr, "exa pixmap", size,
+				align);
+    if (!new_priv->bo) {
 	xfree(new_priv);
 	ErrorF("Failed to alloc memory\n");
 	return NULL;
     }
     
-    ErrorF("new priv is %p\n", new_priv);
-    //    radeon_bind_memory(pScrn, new_priv->mem);
     return new_priv;
 
 }
@@ -441,12 +426,11 @@ void *RADEONEXACreatePixmap(ScreenPtr pScreen, int size, int align)
 static void RADEONEXADestroyPixmap(ScreenPtr pScreen, void *driverPriv)
 {
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    RADEONInfoPtr info = RADEONPTR(pScrn);
     struct radeon_exa_pixmap_priv *driver_priv = driverPriv;
-    
-    if (!(driver_priv->flags & RADEON_PIXMAP_IS_FRONTBUFFER)) {
-	radeon_free_memory(pScrn, driver_priv->mem);
+    int ret;
 
-    }
+    dri_bo_unreference(driver_priv->bo);
     xfree(driverPriv);
 }
 
@@ -472,7 +456,9 @@ static Bool RADEONEXAModifyPixmapHeader(PixmapPtr pPixmap, int width, int height
     if (pPixData == info->mm.front_buffer->map) {
 	driver_priv->flags |= RADEON_PIXMAP_IS_FRONTBUFFER;
 
-	driver_priv->mem = info->mm.front_buffer;
+	driver_priv->bo = 
+	    radeon_bufmgr_exa_create_bo(info->bufmgr, info->mm.front_buffer);
+
 	miModifyPixmapHeader(pPixmap, width, height, depth,
                              bitsPerPixel, devKind, NULL);
 	return TRUE;
@@ -488,7 +474,7 @@ static Bool RADEONEXAPixmapIsOffscreen(PixmapPtr pPix)
 
     if (!driver_priv)
        return FALSE;
-    if (driver_priv->mem)
+    if (driver_priv->bo)
        return TRUE;
     assert(0);
     return FALSE;
