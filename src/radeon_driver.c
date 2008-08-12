@@ -5718,6 +5718,11 @@ void RADEONAdjustFrame(int scrnIndex, int x, int y, int flags)
     xf86OutputPtr  output = config->output[config->compat_output];
     xf86CrtcPtr	crtc = output->crtc;
 
+    if (info->drm_mode_setting) {
+	drmmode_adjust_frame(pScrn, &info->drmmode, x, y, flags);
+	return;
+    }
+
     /* not handled */
     if (IS_AVIVO_VARIANT)
 	return;
