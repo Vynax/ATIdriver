@@ -3124,7 +3124,8 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 	}
 
 	info->drmmode.create_new_fb = radeon_create_new_fb;
-
+	info->drmmode.create_rotate_bo = radeon_create_rotate_bo;
+	info->drmmode.destroy_rotate_bo = radeon_destroy_rotate_bo;
 	info->drmFD = info->drmmode.fd;
 	xfree(bus_id);
 	 

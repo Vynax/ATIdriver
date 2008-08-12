@@ -939,6 +939,7 @@ typedef struct {
 
       struct radeon_memory *dma_buffer;
       struct radeon_memory *gart_texture_buffer;
+      struct radeon_memory *rotate_buffer;
       struct radeon_memory *cursor[2];
 
       /* indirect buffer for accel */
@@ -1222,6 +1223,9 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen);
 Bool RADEONDRIDoMappings(ScreenPtr pScreen);
 Bool radeon_update_dri_buffers(ScrnInfoPtr pScrn);
 Bool radeon_setup_gart_mem(ScreenPtr pScreen);
+Bool radeon_create_rotate_bo(ScrnInfoPtr pScrn, int size, uint32_t *handle,
+			     void **ptr);
+void radeon_destroy_rotate_bo(ScrnInfoPtr pScrn);
 
 #ifdef XF86DRI
 #  ifdef USE_XAA

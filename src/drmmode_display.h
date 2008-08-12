@@ -40,6 +40,8 @@ typedef struct {
   //  dri_bufmgr *bufmgr;
 
   uint32_t (*create_new_fb)(ScrnInfoPtr pScrn, int width, int height, int *pitch);
+  Bool (*create_rotate_bo)(ScrnInfoPtr pScrn, int size, uint32_t *handle, void **ptr);
+  void (*destroy_rotate_bo)(ScrnInfoPtr pScrn);
 } drmmode_rec, *drmmode_ptr;
 
 typedef struct {

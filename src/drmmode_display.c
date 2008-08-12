@@ -245,31 +245,24 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
 	int size;
 	unsigned long rotate_pitch;
-
+	uint32_t rotate_handle;
+	void *rotate_ptr;
+	int ret;
 	rotate_pitch = crtc->scrn->displayWidth * drmmode->cpp;
 	size = rotate_pitch * height;
 
-#if 0
-	drmmode_crtc->rotate_bo = dri_bo_alloc(drmmode->bufmgr, "rotate",
-					     size, 4096, DRM_BO_FLAG_MEM_TT | DRM_BO_FLAG_CACHED | DRM_BO_FLAG_CACHED_MAPPED);
-
-	if (!drmmode_crtc->rotate_bo) {
-		xf86DrvMsg(crtc->scrn->scrnIndex, X_ERROR,
-			   "Couldn't allocate shadow memory for rotated CRTC\n");
+	ret = drmmode->create_rotate_bo(crtc->scrn, size, &rotate_handle,
+					&rotate_ptr);
+	if (ret == FALSE)
 		return NULL;
-	}
-		
-	dri_bo_map(drmmode_crtc->rotate_bo, 1);
 
 	ret = drmModeAddFB(drmmode->fd, width, height, crtc->scrn->depth,
-			   crtc->scrn->bitsPerPixel, rotate_pitch, dri_bo_get_handle(drmmode_crtc->rotate_bo), &drmmode_crtc->rotate_fb_id);
+			   crtc->scrn->bitsPerPixel, rotate_pitch, rotate_handle, &drmmode_crtc->rotate_fb_id);
 	if (ret) {
 		ErrorF("failed to add rotate fb\n");
 	}
        
-	return drmmode_crtc->rotate_bo->virtual;
-#endif
-	return NULL;
+	return rotate_ptr;
 }
 
 static PixmapPtr
@@ -305,11 +298,13 @@ static void
 drmmode_crtc_shadow_destroy(xf86CrtcPtr crtc, PixmapPtr rotate_pixmap, void *data)
 {
 	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+	drmmode_ptr drmmode = drmmode_crtc->drmmode;
 
 	if (rotate_pixmap)
 	    FreeScratchPixmapHeader(rotate_pixmap);
 	
 	if (data) {
+		drmmode->destroy_rotate_bo(crtc->scrn);
 #if 0
 		/* Be sure to sync acceleration before the memory gets unbound. */
 		drmModeRmFB(drmmode->fd, drmmode_crtc->rotate_fb_id);
@@ -481,7 +476,7 @@ const char *output_names[] = { "None",
 			       "DVI",
 			       "DVI",
 			       "DVI",
-			       "Composite"
+			       "Composite",
 			       "TV",
 			       "LVDS",
 			       "CTV",
@@ -676,8 +671,6 @@ static Bool drmmode_resize_fb(ScrnInfoPtr scrn, drmmode_ptr drmmode, int width, 
 	return TRUE;
 }
 
-#endif
-
 void drmmode_adjust_frame(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int x, int y, int flags)
 {
 	xf86CrtcConfigPtr	config = XF86_CRTC_CONFIG_PTR(pScrn);
@@ -689,3 +682,5 @@ void drmmode_adjust_frame(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int x, int y, 
 				       x, y);
 	}
 }
+
+#endif
