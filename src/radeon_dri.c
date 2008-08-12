@@ -412,6 +412,7 @@ static void radeon_update_sarea(ScrnInfoPtr pScrn, RADEONSAREAPrivPtr sarea)
 	ErrorF("front handle is %x\n", sarea->front_handle);
 	sarea->back_handle = radeon_name_buffer(pScrn, info->mm.back_buffer);
 	sarea->depth_handle = radeon_name_buffer(pScrn, info->mm.depth_buffer);
+
     }
 }
 
@@ -433,11 +434,11 @@ radeon_update_screen_private(ScrnInfoPtr pScrn, RADEONSAREAPrivPtr sarea)
     info->pDRIInfo->hFrameBuffer = info->fb_map_handle;
 #endif
     /* overload these */
-    pRADEONDRI->gartTexHandle = info->mm.gart_texture_buffer->kernel_bo_handle;
-    pRADEONDRI->textureOffset = info->mm.texture_buffer->kernel_bo_handle;
-    pRADEONDRI->frontOffset = info->mm.front_buffer->kernel_bo_handle;
-    pRADEONDRI->backOffset = info->mm.back_buffer->kernel_bo_handle;
-    pRADEONDRI->depthOffset = info->mm.depth_buffer->kernel_bo_handle;
+    pRADEONDRI->gartTexHandle = radeon_name_buffer(pScrn, info->mm.gart_texture_buffer);
+    pRADEONDRI->textureOffset = radeon_name_buffer(pScrn, info->mm.texture_buffer);
+    pRADEONDRI->frontOffset = radeon_name_buffer(pScrn, info->mm.front_buffer);
+    pRADEONDRI->backOffset = radeon_name_buffer(pScrn, info->mm.back_buffer);
+    pRADEONDRI->depthOffset = radeon_name_buffer(pScrn, info->mm.depth_buffer);
 }
 
 static Bool
