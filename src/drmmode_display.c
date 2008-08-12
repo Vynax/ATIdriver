@@ -245,24 +245,27 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
 	int size;
 	unsigned long rotate_pitch;
-	uint32_t rotate_handle;
-	void *rotate_ptr;
+	dri_bo *rotate_bo;
 	int ret;
 	rotate_pitch = crtc->scrn->displayWidth * drmmode->cpp;
 	size = rotate_pitch * height;
 
-	ret = drmmode->create_rotate_bo(crtc->scrn, size, &rotate_handle,
-					&rotate_ptr);
-	if (ret == FALSE)
+	rotate_bo = dri_bo_alloc(drmmode->bufmgr, "rotate", size, 0);
+	if (rotate_bo == NULL)
 		return NULL;
 
+	radeon_bufmgr_pin(rotate_bo);
+	dri_bo_map(rotate_bo, 1);
+
 	ret = drmModeAddFB(drmmode->fd, width, height, crtc->scrn->depth,
-			   crtc->scrn->bitsPerPixel, rotate_pitch, rotate_handle, &drmmode_crtc->rotate_fb_id);
+			   crtc->scrn->bitsPerPixel, rotate_pitch, radeon_bufmgr_get_handle(rotate_bo),
+			   &drmmode_crtc->rotate_fb_id);
 	if (ret) {
 		ErrorF("failed to add rotate fb\n");
 	}
-       
-	return rotate_ptr;
+
+	drmmode_crtc->rotate_bo = rotate_bo;
+	return drmmode_crtc->rotate_bo->virtual;
 }
 
 static PixmapPtr
@@ -304,14 +307,10 @@ drmmode_crtc_shadow_destroy(xf86CrtcPtr crtc, PixmapPtr rotate_pixmap, void *dat
 	    FreeScratchPixmapHeader(rotate_pixmap);
 	
 	if (data) {
-		drmmode->destroy_rotate_bo(crtc->scrn);
-#if 0
-		/* Be sure to sync acceleration before the memory gets unbound. */
 		drmModeRmFB(drmmode->fd, drmmode_crtc->rotate_fb_id);
 		drmmode_crtc->rotate_fb_id = 0;
 		dri_bo_unreference(drmmode_crtc->rotate_bo);
 		drmmode_crtc->rotate_bo = NULL;
-#endif
 	}
 
 }
@@ -576,13 +575,11 @@ Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, char *busId, char 
 	return TRUE;
 }
 
-#if 0
 Bool drmmode_set_bufmgr(ScrnInfoPtr pScrn, drmmode_ptr drmmode, dri_bufmgr *bufmgr)
 {
 	drmmode->bufmgr = bufmgr;
 	return TRUE;
 }
-#endif
 
 void drmmode_set_fb(ScrnInfoPtr scrn, drmmode_ptr drmmode, int width, int height, int pitch, uint32_t handle)
 {
@@ -614,7 +611,6 @@ void drmmode_set_cursor(ScrnInfoPtr scrn, drmmode_ptr drmmode, int id, void *ptr
 	drmmode_crtc->cursor_map = ptr;
 }
 
-#if 0
 Bool drmmode_is_rotate_pixmap(ScrnInfoPtr pScrn, pointer pPixData, dri_bo **bo)
 {
 	xf86CrtcConfigPtr	config = XF86_CRTC_CONFIG_PTR (pScrn);
@@ -635,7 +631,6 @@ Bool drmmode_is_rotate_pixmap(ScrnInfoPtr pScrn, pointer pPixData, dri_bo **bo)
 	return FALSE;
 
 }
-#endif
 
 static Bool drmmode_resize_fb(ScrnInfoPtr scrn, drmmode_ptr drmmode, int width, int height)
 {

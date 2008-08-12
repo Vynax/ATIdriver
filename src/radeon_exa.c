@@ -280,12 +280,10 @@ static Bool RADEONPrepareAccess(PixmapPtr pPix, int index)
 	    radeon_bufmgr_exa_wait_rendering(driver_priv->bo);
 
 	    /* flush IB */
-	    if (!(driver_priv->flags & RADEON_PIXMAP_IS_FRONTBUFFER)) {
-		ret = dri_bo_map(driver_priv->bo, 1);
-		if (ret) {
-		    FatalError("failed to map pixmap %d\n", ret);
-		    return FALSE;
-		}
+	    ret = dri_bo_map(driver_priv->bo, 1);
+	    if (ret) {
+		FatalError("failed to map pixmap %d\n", ret);
+		return FALSE;
 	    }
 
 	    pPix->devPrivate.ptr = driver_priv->bo->virtual;
@@ -363,12 +361,7 @@ static void RADEONFinishAccess(PixmapPtr pPix, int index)
     driver_priv = exaGetPixmapDriverPrivate(pPix);
 
     if (driver_priv) {
-
-        if (driver_priv->bo) {
-	    if (!(driver_priv->flags & RADEON_PIXMAP_IS_FRONTBUFFER)) {
-		dri_bo_unmap(driver_priv->bo);
-	    }
-	}
+	dri_bo_unmap(driver_priv->bo);
     }
     pPix->devPrivate.ptr = NULL;
 
@@ -448,10 +441,15 @@ static Bool RADEONEXAModifyPixmapHeader(PixmapPtr pPixmap, int width, int height
 	return FALSE;
 
 
-    //    if (info->drm_mode_setting && drmmode_is_rotate_pixmap(pScrn, pPixData, NULL)){
+    if (info->drm_mode_setting && drmmode_is_rotate_pixmap(pScrn, pPixData, &driver_priv->bo)){
+	ErrorF("bo %p\n", driver_priv->bo);
+	dri_bo_unmap(driver_priv->bo);
+	dri_bo_reference(driver_priv->bo);
+	miModifyPixmapHeader(pPixmap, width, height, depth,
+                             bitsPerPixel, devKind, NULL);
 
     
-    //    }
+    }
 
     if (pPixData == info->mm.front_buffer->map) {
 	driver_priv->flags |= RADEON_PIXMAP_IS_FRONTBUFFER;

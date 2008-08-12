@@ -61,6 +61,7 @@ typedef struct _dri_bo_exa {
 	struct radeon_memory *mem;
 	int refcount;
 	int reloc_count;
+	int map_count;
 	/* reloc list - add to list for relocs */
 	struct _dri_bo_exa *next;
 } dri_bo_exa;
@@ -93,10 +94,8 @@ dri_exa_alloc(dri_bufmgr *bufmgr, const char *name,
 	exa_buf->bo.bufmgr = bufmgr;
 	exa_buf->next = NULL;
 	exa_buf->reloc_count = 0;
+	exa_buf->map_count = 0;
 
-	radeon_map_memory(bufmgr_exa->pScrn, exa_buf->mem);
-	exa_buf->bo.virtual = exa_buf->mem->map;
-	
 	return &exa_buf->bo;
 }
 
@@ -125,7 +124,12 @@ dri_exa_bo_map(dri_bo *buf, int write_enable)
 {
 	dri_bufmgr_exa *bufmgr_exa = (dri_bufmgr_exa *)buf->bufmgr;
 	dri_bo_exa *exa_buf = (dri_bo_exa *)buf;
+
+	if (exa_buf->map_count++ != 0)
+		return 0;
+	
 	radeon_map_memory(bufmgr_exa->pScrn, exa_buf->mem);
+	exa_buf->bo.virtual = exa_buf->mem->map;
 	return 0;
 }
 
@@ -134,7 +138,12 @@ dri_exa_bo_unmap(dri_bo *buf)
 {
 	dri_bufmgr_exa *bufmgr_exa = (dri_bufmgr_exa *)buf->bufmgr;
 	dri_bo_exa *exa_buf = (dri_bo_exa *)buf;
+
+	if (--exa_buf->map_count > 0)
+		return 0;
+
 	radeon_unmap_memory(bufmgr_exa->pScrn, exa_buf->mem);
+	exa_buf->bo.virtual = 0;
 	return 0;
 }
 
@@ -176,6 +185,10 @@ radeon_bufmgr_exa_create_bo(dri_bufmgr *bufmgr, struct radeon_memory *mem)
 	exa_buf->bo.offset = exa_buf->mem->offset;
 	exa_buf->bo.bufmgr = bufmgr;
 	exa_buf->bo.virtual = exa_buf->mem->map;
+	exa_buf->next = NULL;
+	exa_buf->reloc_count = 0;
+	exa_buf->map_count = 0;
+
 	return &exa_buf->bo;
 }
 
@@ -250,9 +263,32 @@ void radeon_bufmgr_post_submit(dri_bufmgr *bufmgr)
 		trav = trav->next;
 		
 		prev->reloc_count = 0;
-		dri_bo_unreference(&prev->bo);
 		prev->next = NULL;
+		dri_bo_unreference(&prev->bo);
 	}
 	bufmgr_exa->reloc_head = NULL;
 
+}
+
+void radeon_bufmgr_pin(dri_bo *buf)
+{
+	dri_bufmgr_exa *bufmgr_exa = (dri_bufmgr_exa *)buf->bufmgr;
+	dri_bo_exa *exa_buf = (dri_bo_exa *)buf;
+
+	radeon_bind_memory(bufmgr_exa->pScrn, exa_buf->mem);
+}
+
+void radeon_bufmgr_unpin(dri_bo *buf)
+{
+	dri_bufmgr_exa *bufmgr_exa = (dri_bufmgr_exa *)buf->bufmgr;
+	dri_bo_exa *exa_buf = (dri_bo_exa *)buf;
+
+	radeon_unbind_memory(bufmgr_exa->pScrn, exa_buf->mem);
+}
+
+uint32_t radeon_bufmgr_get_handle(dri_bo *buf)
+{
+	dri_bo_exa *exa_buf = (dri_bo_exa *)buf;
+	
+	return exa_buf->mem->kernel_bo_handle;
 }

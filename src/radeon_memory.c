@@ -411,28 +411,14 @@ uint32_t radeon_create_new_fb(ScrnInfoPtr pScrn, int width, int height, int *pit
 }
 
 
-Bool radeon_create_rotate_bo(ScrnInfoPtr pScrn, int size, uint32_t *handle,
-			     void **ptr)
+dri_bo *radeon_create_rotate_bo(ScrnInfoPtr pScrn, int size)
 {
 	RADEONInfoPtr info = RADEONPTR(pScrn);
-	info->mm.rotate_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, size, 0, 1, "Rotate Buffer", 1);
-	if (!info->mm.rotate_buffer) {
-		return FALSE;
-	}
+	dri_bo *bo;
 
-	radeon_bind_memory(pScrn, info->mm.rotate_buffer);
-	
-	if (radeon_map_memory(pScrn, info->mm.rotate_buffer)) {
-		ErrorF("Failed to map rotate memory\n");
-	}
-	*handle = info->mm.rotate_buffer->kernel_bo_handle;
-	*ptr = info->mm.rotate_buffer->map;
-	return TRUE;
+	bo = dri_bo_alloc(info->bufmgr, "rotate", size, 0);
+
+	radeon_bufmgr_pin(bo);
+	return bo;
 }
 
-void radeon_destroy_rotate_bo(ScrnInfoPtr pScrn)
-{
-	RADEONInfoPtr info = RADEONPTR(pScrn);
-	radeon_free_memory(pScrn, info->mm.rotate_buffer);
-	info->mm.rotate_buffer = NULL;
-}

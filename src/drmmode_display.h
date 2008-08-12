@@ -31,17 +31,18 @@
 
 #include "xf86drmMode.h"
 
+#include "radeon_probe.h"
+#include "radeon_bufmgr_exa.h"
+
 typedef struct {
   int fd;
   int fb_id;
   drmModeResPtr mode_res;
   drmModeFBPtr mode_fb;
   int cpp;
-  //  dri_bufmgr *bufmgr;
+  dri_bufmgr *bufmgr;
 
   uint32_t (*create_new_fb)(ScrnInfoPtr pScrn, int width, int height, int *pitch);
-  Bool (*create_rotate_bo)(ScrnInfoPtr pScrn, int size, uint32_t *handle, void **ptr);
-  void (*destroy_rotate_bo)(ScrnInfoPtr pScrn);
 } drmmode_rec, *drmmode_ptr;
 
 typedef struct {
@@ -50,7 +51,7 @@ typedef struct {
     drmModeCrtcPtr mode_crtc;
     uint32_t cursor_handle;
     void *cursor_map;
-  //    dri_bo *rotate_bo;
+    dri_bo *rotate_bo;
     int rotate_fb_id;
 } drmmode_crtc_private_rec, *drmmode_crtc_private_ptr;
 
@@ -64,9 +65,9 @@ typedef struct {
 
 
 extern Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, char *busId, char *driver_name, int cpp);
-//extern Bool drmmode_set_bufmgr(ScrnInfoPtr pScrn, drmmode_ptr drmmode, dri_bufmgr *bufmgr);
+extern Bool drmmode_set_bufmgr(ScrnInfoPtr pScrn, drmmode_ptr drmmode, dri_bufmgr *bufmgr);
 extern void drmmode_set_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int width, int height, int pitch, uint32_t handle);
-//extern Bool drmmode_is_rotate_pixmap(ScrnInfoPtr pScrn, pointer pPixData, dri_bo **bo);
+extern Bool drmmode_is_rotate_pixmap(ScrnInfoPtr pScrn, pointer pPixData, dri_bo **bo);
 extern void drmmode_set_cursor(ScrnInfoPtr scrn, drmmode_ptr drmmode, int id, void *ptr, uint32_t handle);
 void drmmode_adjust_frame(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int x, int y, int flags);
 #endif
