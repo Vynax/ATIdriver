@@ -1696,9 +1696,7 @@ static Bool RADEONPreInitVRAM(ScrnInfoPtr pScrn)
 
     pScrn->videoRam  &= ~1023;
 
-    /* half video RAM for TTM */
     info->FbMapSize  = pScrn->videoRam * 1024;
-    info->FbMapSize /= 2;
 
     /* if the card is PCI Express reserve the last 32k for the gart table */
 #ifdef XF86DRI
