@@ -187,7 +187,8 @@ radeon_bufmgr_exa_create_bo(dri_bufmgr *bufmgr, struct radeon_memory *mem)
 	exa_buf->bo.virtual = exa_buf->mem->map;
 	exa_buf->next = NULL;
 	exa_buf->reloc_count = 0;
-	exa_buf->map_count = 0;
+	/* get map count right */
+	exa_buf->map_count = 1;
 
 	return &exa_buf->bo;
 }
