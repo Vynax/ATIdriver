@@ -474,7 +474,6 @@ static Bool RADEONEXAPixmapIsOffscreen(PixmapPtr pPix)
        return FALSE;
     if (driver_priv->bo)
        return TRUE;
-    assert(0);
     return FALSE;
 }
 
