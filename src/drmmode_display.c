@@ -329,10 +329,6 @@ static const xf86CrtcFuncsRec drmmode_crtc_funcs = {
     .shadow_destroy = drmmode_crtc_shadow_destroy,
 #if 0
     .gamma_set = i830_crtc_gamma_set,
-    .shadow_create = i830_crtc_shadow_create,
-    .shadow_allocate = i830_crtc_shadow_allocate,
-    .shadow_destroy = i830_crtc_shadow_destroy,
-    .set_cursor_colors = i830_crtc_set_cursor_colors,
 #endif
     .destroy = NULL, /* XXX */
 };
@@ -615,6 +611,9 @@ Bool drmmode_is_rotate_pixmap(ScrnInfoPtr pScrn, pointer pPixData, dri_bo **bo)
 {
 	xf86CrtcConfigPtr	config = XF86_CRTC_CONFIG_PTR (pScrn);
 	int i;
+
+	if (pPixData == NULL)
+		return FALSE;
 
 	for (i = 0; i < config->num_crtc; i++) {
 		xf86CrtcPtr crtc = config->crtc[i];

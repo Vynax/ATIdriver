@@ -442,13 +442,12 @@ static Bool RADEONEXAModifyPixmapHeader(PixmapPtr pPixmap, int width, int height
 
 
     if (info->drm_mode_setting && drmmode_is_rotate_pixmap(pScrn, pPixData, &driver_priv->bo)){
-	ErrorF("bo %p\n", driver_priv->bo);
 	dri_bo_unmap(driver_priv->bo);
 	dri_bo_reference(driver_priv->bo);
 	miModifyPixmapHeader(pPixmap, width, height, depth,
                              bitsPerPixel, devKind, NULL);
 
-    
+    	return TRUE;
     }
 
     if (pPixData == info->mm.front_buffer->map) {
