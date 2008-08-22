@@ -1373,9 +1373,9 @@ do {									\
 
 /* TODO - VRAM is wrong in general but true for now - all EXA stuff
  is in VRAM */
-#define OUT_RING_RELOC(x)						       \
-  do {								       \
-    radeon_bufmgr_exa_emit_reloc(x, __head, &__count);		       \
+#define OUT_RING_RELOC(x, read_domains, write_domains)			\
+  do {									\
+    radeon_bufmgr_exa_emit_reloc(x, __head, &__count, read_domains, write_domains); \
   } while(0)
 
 

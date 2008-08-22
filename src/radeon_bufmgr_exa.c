@@ -217,11 +217,10 @@ radeon_bufmgr_exa_init(ScrnInfoPtr pScrn)
 	bufmgr_exa->bufmgr.bo_unmap = dri_exa_bo_unmap;
 	bufmgr_exa->bufmgr.destroy = dri_bufmgr_exa_destroy;
 	bufmgr_exa->bufmgr.bo_wait_rendering = radeon_bufmgr_exa_wait_rendering;
-
 	return &bufmgr_exa->bufmgr;
 }
 
-void radeon_bufmgr_exa_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p)
+void radeon_bufmgr_exa_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p, uint32_t read_domains, uint32_t write_domain)
 {
 	dri_bufmgr_exa *bufmgr_exa = (dri_bufmgr_exa *)buf->bufmgr;
 	ScrnInfoPtr pScrn = bufmgr_exa->pScrn;
@@ -245,8 +244,8 @@ void radeon_bufmgr_exa_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p
 	exa_buf->reloc_count++;
 	OUT_RING(CP_PACKET3(RADEON_CP_PACKET3_NOP, 2));
 	OUT_RING(exa_buf->mem->kernel_bo_handle);
-	OUT_RING(RADEON_GEM_DOMAIN_VRAM);
-	OUT_RING(0);
+	OUT_RING(read_domains);
+	OUT_RING(write_domain);
 	*count_p = __count;
 }
 

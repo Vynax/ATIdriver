@@ -124,12 +124,12 @@ static void FUNC_NAME(Emit2DState)(ScrnInfoPtr pScrn, int op)
 
     OUT_ACCEL_REG(RADEON_DST_PITCH_OFFSET, info->state_2d.dst_pitch_offset);
     if (info->new_cs)
-	OUT_RELOC(info->state_2d.dst_bo);
+	OUT_RELOC(info->state_2d.dst_bo, 0, RADEON_GEM_DOMAIN_VRAM);
 
     if (has_src) {
 	    OUT_ACCEL_REG(RADEON_SRC_PITCH_OFFSET, info->state_2d.src_pitch_offset);
 	    if (info->new_cs)
-		    OUT_RELOC(info->state_2d.src_bo);
+		OUT_RELOC(info->state_2d.src_bo, RADEON_GEM_DOMAIN_GTT|RADEON_GEM_DOMAIN_VRAM, 0);
 	    
     }
     FINISH_ACCEL();

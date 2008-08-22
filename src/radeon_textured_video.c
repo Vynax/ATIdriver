@@ -133,7 +133,7 @@ static __inline__ uint32_t float4touint(float fr, float fg, float fb, float fa)
 #define BEGIN_ACCEL(n)		RADEONWaitForFifo(pScrn, (n))
 #define OUT_ACCEL_REG(reg, val)	OUTREG(reg, val)
 #define OUT_ACCEL_REG_F(reg, val) OUTREG(reg, F_TO_DW(val))
-#define OUT_RELOC(x) do {} while(0)
+#define OUT_RELOC(x, read, write) do {} while(0)
 #define FINISH_ACCEL()
 
 #include "radeon_textured_videofuncs.c"
@@ -157,7 +157,7 @@ static __inline__ uint32_t float4touint(float fr, float fg, float fb, float fa)
 #define OUT_ACCEL_REG_F(reg, val)	OUT_ACCEL_REG(reg, F_TO_DW(val))
 #define FINISH_ACCEL()		ADVANCE_RING()
 #define OUT_RING_F(x) OUT_RING(F_TO_DW(x))
-#define OUT_RELOC(x) OUT_RING_RELOC(x)
+#define OUT_RELOC(x, read, write) OUT_RING_RELOC(x, read, write)
 
 #include "radeon_textured_videofuncs.c"
 
