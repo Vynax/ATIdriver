@@ -667,7 +667,7 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     info->indirectBuffer->total -= 16*4;
 
     if (info->bufmgr)
-      radeon_bufmgr_post_submit(info->bufmgr);
+      radeon_gem_bufmgr_post_submit(info->bufmgr);
 
     /* copy some state into the buffer now - we need to add 2D state to each
        buffer as the kernel needs to use the blit engine to move stuff around */
@@ -736,7 +736,7 @@ void RADEONGEMFlushIndirect(ScrnInfoPtr pScrn, int discard)
     /* for now just wait for the buffer to come around again */
 
     dom_args.handle = info->mm.gem_ib_memory->kernel_bo_handle;
-    dom_args.read_domains = RADEON_GEM_DOMAIN_CPU;
+    dom_args.read_domains = RADEON_GEM_DOMAIN_GTT;
     dom_args.write_domain = 0;
 
     drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_SET_DOMAIN,

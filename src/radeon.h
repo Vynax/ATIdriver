@@ -87,7 +87,7 @@
 #include "xf86Crtc.h"
 #include "X11/Xatom.h"
 
-#include "radeon_bufmgr_exa.h"
+#include "radeon_bufmgr.h"
 				/* Render support */
 #ifdef RENDER
 #include "picturestr.h"
@@ -1213,6 +1213,7 @@ radeon_legacy_free_memory(ScrnInfoPtr pScrn,
 		          void *mem_struct);
 
 /* radeon_memory.c */
+extern uint32_t radeon_name_buffer(ScrnInfoPtr pScrn, struct radeon_memory *mem);
 extern Bool radeon_bind_all_memory(ScrnInfoPtr pScrn);
 extern Bool radeon_unbind_all_memory(ScrnInfoPtr pScrn);
 extern struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int size, int alignment, Bool no_backing_store, char *name, 
@@ -1375,7 +1376,7 @@ do {									\
  is in VRAM */
 #define OUT_RING_RELOC(x, read_domains, write_domains)			\
   do {									\
-    radeon_bufmgr_exa_emit_reloc(x, __head, &__count, read_domains, write_domains); \
+    radeon_bufmgr_emit_reloc(x, __head, &__count, read_domains, write_domains); \
   } while(0)
 
 

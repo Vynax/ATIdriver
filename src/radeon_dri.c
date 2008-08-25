@@ -372,7 +372,7 @@ static void RADEONDestroyContext(ScreenPtr pScreen, drm_context_t hwContext,
 }
 
 
-static uint32_t radeon_name_buffer(ScrnInfoPtr pScrn, struct radeon_memory *mem)
+uint32_t radeon_name_buffer(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 {
     RADEONInfoPtr  info  = RADEONPTR(pScrn);
     struct drm_gem_flink flink;

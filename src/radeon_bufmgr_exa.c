@@ -53,7 +53,7 @@
 #include "radeon_reg.h"
 #include "radeon_probe.h"
 #include "radeon.h"
-#include "radeon_bufmgr_exa.h"
+#include "radeon_bufmgr.h"
 
 
 typedef struct _dri_bo_exa {
@@ -68,6 +68,7 @@ typedef struct _dri_bo_exa {
 
 typedef struct _dri_bufmgr_exa {
 	dri_bufmgr bufmgr;
+	struct radeon_bufmgr radeon_bufmgr;
 	ScrnInfoPtr pScrn;
 	struct _dri_bo_exa *reloc_head;
 } dri_bufmgr_exa;
@@ -86,7 +87,7 @@ dri_exa_alloc(dri_bufmgr *bufmgr, const char *name,
 		return NULL;
 
 	exa_buf->refcount = 1;
-	exa_buf->mem = radeon_allocate_memory(bufmgr_exa->pScrn, RADEON_POOL_VRAM,
+	exa_buf->mem = radeon_allocate_memory(bufmgr_exa->pScrn, RADEON_POOL_GART,
 					      size, alignment, 0, name, 0);
 
 	exa_buf->bo.size = exa_buf->mem->size;
@@ -170,6 +171,34 @@ void radeon_bufmgr_exa_wait_rendering(dri_bo *buf)
 	return;
 }
 
+int radeon_bufmgr_subdata(dri_bo *buf, unsigned long offset,
+			  unsigned long size, const void *data)
+{
+	dri_bo_exa *exa_buf = (dri_bo_exa *)buf;
+	dri_bufmgr_exa *bufmgr_exa = (dri_bufmgr_exa *)buf->bufmgr;
+	RADEONInfoPtr info = RADEONPTR(bufmgr_exa->pScrn);
+	int ret;
+	/* go to pwrite */
+	struct drm_radeon_gem_pwrite pwrite;
+
+	pwrite.handle = exa_buf->mem->kernel_bo_handle;
+	pwrite.offset = offset;
+	pwrite.size = size;
+	pwrite.data_ptr = (uint64_t)(uintptr_t)data;
+
+	do {
+		ret = drmCommandWriteRead(info->drmFD, DRM_IOCTL_RADEON_GEM_PWRITE,
+					  &pwrite, sizeof(pwrite));
+	} while (ret == -1 && errno == EINTR);
+
+	if (ret != 0) {
+		fprintf(stderr,"Pwrite %lx at %lx failed\n", size, offset);
+		return -1;
+	}
+	return 0;
+}
+
+
 dri_bo *
 radeon_bufmgr_exa_create_bo(dri_bufmgr *bufmgr, struct radeon_memory *mem)
 {
@@ -193,34 +222,7 @@ radeon_bufmgr_exa_create_bo(dri_bufmgr *bufmgr, struct radeon_memory *mem)
 	return &exa_buf->bo;
 }
 
-/**
- * Initializes the EXA buffer manager, which is just a thin wrapper
- * around the EXA allocator.
- *
- * \param fd File descriptor of the opened DRM device.
- * \param fence_type Driver-specific fence type used for fences with no flush.
- * \param fence_type_flush Driver-specific fence type used for fences with a
- *	  flush.
- */
-dri_bufmgr *
-radeon_bufmgr_exa_init(ScrnInfoPtr pScrn)
-{
-	dri_bufmgr_exa *bufmgr_exa;
-
-	bufmgr_exa = calloc(1, sizeof(*bufmgr_exa));
-	bufmgr_exa->pScrn = pScrn;
-
-	bufmgr_exa->bufmgr.bo_alloc = dri_exa_alloc;
-	bufmgr_exa->bufmgr.bo_reference = dri_exa_bo_reference;
-	bufmgr_exa->bufmgr.bo_unreference = dri_exa_bo_unreference;
-	bufmgr_exa->bufmgr.bo_map = dri_exa_bo_map;
-	bufmgr_exa->bufmgr.bo_unmap = dri_exa_bo_unmap;
-	bufmgr_exa->bufmgr.destroy = dri_bufmgr_exa_destroy;
-	bufmgr_exa->bufmgr.bo_wait_rendering = radeon_bufmgr_exa_wait_rendering;
-	return &bufmgr_exa->bufmgr;
-}
-
-void radeon_bufmgr_exa_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p, uint32_t read_domains, uint32_t write_domain)
+static void radeon_bufmgr_exa_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p, uint32_t read_domains, uint32_t write_domain)
 {
 	dri_bufmgr_exa *bufmgr_exa = (dri_bufmgr_exa *)buf->bufmgr;
 	ScrnInfoPtr pScrn = bufmgr_exa->pScrn;
@@ -247,6 +249,34 @@ void radeon_bufmgr_exa_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p
 	OUT_RING(read_domains);
 	OUT_RING(write_domain);
 	*count_p = __count;
+}
+
+/**
+ * Initializes the EXA buffer manager, which is just a thin wrapper
+ * around the EXA allocator.
+ *
+ * \param fd File descriptor of the opened DRM device.
+ * \param fence_type Driver-specific fence type used for fences with no flush.
+ * \param fence_type_flush Driver-specific fence type used for fences with a
+ *	  flush.
+ */
+dri_bufmgr *
+radeon_bufmgr_exa_init(ScrnInfoPtr pScrn)
+{
+	dri_bufmgr_exa *bufmgr_exa;
+
+	bufmgr_exa = calloc(1, sizeof(*bufmgr_exa));
+	bufmgr_exa->pScrn = pScrn;
+
+	bufmgr_exa->bufmgr.bo_alloc = dri_exa_alloc;
+	bufmgr_exa->bufmgr.bo_reference = dri_exa_bo_reference;
+	bufmgr_exa->bufmgr.bo_unreference = dri_exa_bo_unreference;
+	bufmgr_exa->bufmgr.bo_map = dri_exa_bo_map;
+	bufmgr_exa->bufmgr.bo_unmap = dri_exa_bo_unmap;
+	bufmgr_exa->bufmgr.destroy = dri_bufmgr_exa_destroy;
+	bufmgr_exa->bufmgr.bo_wait_rendering = radeon_bufmgr_exa_wait_rendering;
+	bufmgr_exa->radeon_bufmgr.emit_reloc = radeon_bufmgr_exa_emit_reloc;
+	return &bufmgr_exa->bufmgr;
 }
 
 void radeon_bufmgr_post_submit(dri_bufmgr *bufmgr)

@@ -32,7 +32,7 @@
 #include "xf86drmMode.h"
 
 #include "radeon_probe.h"
-#include "radeon_bufmgr_exa.h"
+#include "radeon_bufmgr.h"
 
 typedef struct {
   int fd;

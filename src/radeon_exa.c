@@ -277,7 +277,7 @@ static Bool RADEONPrepareAccess(PixmapPtr pPix, int index)
 
 	    RADEONCPFlushIndirect(pScrn, 0);
 
-	    radeon_bufmgr_exa_wait_rendering(driver_priv->bo);
+	    radeon_bufmgr_gem_wait_rendering(driver_priv->bo);
 
 	    /* flush IB */
 	    ret = dri_bo_map(driver_priv->bo, 1);
@@ -453,8 +453,11 @@ static Bool RADEONEXAModifyPixmapHeader(PixmapPtr pPixmap, int width, int height
     if (pPixData == info->mm.front_buffer->map) {
 	driver_priv->flags |= RADEON_PIXMAP_IS_FRONTBUFFER;
 
-	driver_priv->bo = 
-	    radeon_bufmgr_exa_create_bo(info->bufmgr, info->mm.front_buffer);
+	if (info->new_cs)
+	  driver_priv->bo = radeon_bo_gem_create_from_name(info->bufmgr, "front",
+							   radeon_name_buffer(pScrn, info->mm.front_buffer));
+	else
+	  driver_priv->bo = radeon_bufmgr_exa_create_bo(info->bufmgr, info->mm.front_buffer);
 
 	miModifyPixmapHeader(pPixmap, width, height, depth,
                              bitsPerPixel, devKind, NULL);
@@ -685,14 +688,23 @@ RADEONTexOffsetStart(PixmapPtr pPix)
 {
     RINFO_FROM_SCREEN(pPix->drawable.pScreen);
     unsigned long long offset;
-    exaMoveInPixmap(pPix);
-    ExaOffscreenMarkUsed(pPix);
+    struct radeon_exa_pixmap_priv *driver_priv;
+    uint32_t offset;
 
-    offset = exaGetPixmapOffset(pPix);
+    driver_priv = exaGetPixmapDriverPrivate(pPix);
 
-    if (offset > info->FbMapSize)
-	return ~0ULL;
-    else
-	return info->fbLocation + offset;
+    if (driver_priv) {
+        offset = driver_priv->bo->offset;
+    } else {
+    	exaMoveInPixmap(pPix);
+        ExaOffscreenMarkUsed(pPix);
+        offset = exaGetPixmapOffset(pPix);
+    	if (offset > info->FbMapSize)
+		return ~0ULL;
+    	else
+    		offset += info->fbLocation;
+    }
+
+    return offset;
 }
 #endif
