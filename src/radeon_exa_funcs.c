@@ -354,6 +354,12 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 {
     RINFO_FROM_SCREEN(pDst->drawable.pScreen);
     unsigned int   bpp	     = pDst->drawable.bitsPerPixel;
+<<<<<<< HEAD:src/radeon_exa_funcs.c
+=======
+    int ret;
+    struct radeon_exa_pixmap_priv *driver_priv;
+#ifdef ACCEL_CP
+>>>>>>> radeon: implement simple UTS:src/radeon_exa_funcs.c
     unsigned int   hpass;
     uint32_t	   buf_pitch, dst_pitch_off;
 
@@ -363,9 +369,37 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 	return FALSE;
 
     if (info->new_cs)
-	    dst = info->mm.front_buffer->map + exaGetPixmapOffset(pDst);
+	dst = info->mm.front_buffer->map + exaGetPixmapOffset(pDst);
 
 #ifdef ACCEL_CP
+
+    if (info->new_cs){
+
+	if (info->drm_mm) {
+	    uint32_t offset, bo_width, bo_height = h;
+
+	    driver_priv = exaGetPixmapDriverPrivate(pDst);
+	    if (!driver_priv)
+		return FALSE;
+
+
+	    /* use pwrites - maybe require some sort of fallback */
+	    bo_width = w * (bpp / 8);
+	    offset = (x * bpp / 8) + (y * dst_pitch);
+
+	    while (bo_height--) {
+		ret = dri_bo_subdata(driver_priv->bo, offset, bo_width,
+				     src);
+		if (ret == -1)
+		    return FALSE;
+		    
+		src += src_pitch;
+		offset += dst_pitch;
+	    }
+
+	    return TRUE;
+	}
+    }
     if (!info->directRenderingEnabled && !info->drm_mode_setting)
         goto fallback;
 
