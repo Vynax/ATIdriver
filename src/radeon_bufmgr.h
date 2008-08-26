@@ -26,5 +26,5 @@ void radeon_bufmgr_post_submit(dri_bufmgr *bufmgr);
 void radeon_bufmgr_pin(dri_bo *buf);
 void radeon_bufmgr_unpin(dri_bo *buf);
 uint32_t radeon_bufmgr_get_handle(dri_bo *buf);
-
+void radeon_bufmgr_gem_enable_reuse(dri_bufmgr *bufmgr);
 #endif

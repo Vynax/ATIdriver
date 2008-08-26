@@ -277,7 +277,7 @@ static Bool RADEONPrepareAccess(PixmapPtr pPix, int index)
 
 	    RADEONCPFlushIndirect(pScrn, 0);
 
-	    radeon_bufmgr_gem_wait_rendering(driver_priv->bo);
+	    //radeon_bufmgr_gem_wait_rendering(driver_priv->bo);
 
 	    /* flush IB */
 	    ret = dri_bo_map(driver_priv->bo, 1);

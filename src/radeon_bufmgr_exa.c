@@ -163,7 +163,7 @@ void radeon_bufmgr_exa_wait_rendering(dri_bo *buf)
 	int ret;
 
 	dom_args.handle = exa_buf->mem->kernel_bo_handle;
-	dom_args.read_domains = RADEON_GEM_DOMAIN_CPU;
+	dom_args.read_domains = RADEON_GEM_DOMAIN_GTT;
 	dom_args.write_domain = 0;
 	ret = drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_SET_DOMAIN,
 				  &dom_args, sizeof(dom_args));
