@@ -132,7 +132,7 @@ struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int si
     if (pool == RADEON_POOL_VRAM)
       args.initial_domain = RADEON_GEM_DOMAIN_VRAM;
     else
-      args.initial_domain = RADEON_GEM_DOMAIN_CPU;
+      args.initial_domain = RADEON_GEM_DOMAIN_GTT;
     args.no_backing_store = no_backing_store;
 
     ret = drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_CREATE, &args, sizeof(args));
