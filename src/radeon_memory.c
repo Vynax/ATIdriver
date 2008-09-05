@@ -21,6 +21,10 @@ radeon_bind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 
 		int ret;
 
+    		if (mem->pool == RADEON_POOL_VRAM)
+		    pin.pin_domain = RADEON_GEM_DOMAIN_VRAM;
+    		else
+      		    pin.pin_domain = RADEON_GEM_DOMAIN_GTT;
 		pin.handle = mem->kernel_bo_handle;
 		pin.alignment = mem->alignment;
 

@@ -5803,8 +5803,11 @@ Bool RADEONEnterVT(int scrnIndex, int flags)
 
     }
 
-    if (info->drm_mm)
+    if (info->drm_mm) {
 	radeon_bind_all_memory(pScrn);
+	info->XInited3D = FALSE;
+	info->engineMode = EXA_ENGINEMODE_UNKNOWN;
+    }
 
     radeon_update_dri_buffers(pScrn);
 
