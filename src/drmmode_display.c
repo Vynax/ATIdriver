@@ -258,7 +258,7 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 	dri_bo_map(rotate_bo, 1);
 
 	ret = drmModeAddFB(drmmode->fd, width, height, crtc->scrn->depth,
-			   crtc->scrn->bitsPerPixel, rotate_pitch, radeon_bufmgr_get_handle(rotate_bo), 0,
+			   crtc->scrn->bitsPerPixel, rotate_pitch, radeon_bufmgr_get_handle(rotate_bo),
 			   &drmmode_crtc->rotate_fb_id);
 	if (ret) {
 		ErrorF("failed to add rotate fb\n");
@@ -582,7 +582,7 @@ void drmmode_set_fb(ScrnInfoPtr scrn, drmmode_ptr drmmode, int width, int height
 	int ret;
 
 	ret = drmModeAddFB(drmmode->fd, width, height, scrn->depth,
-			   scrn->bitsPerPixel, pitch, handle, DRM_FB_COPY_ROOT,
+			   scrn->bitsPerPixel, pitch, handle,
 			   &drmmode->fb_id);
 
 	if (ret) {
