@@ -451,6 +451,7 @@ radeon_update_dri_mappings(ScrnInfoPtr pScrn, RADEONSAREAPrivPtr sarea)
     if (!info->drm_mm)
 	return TRUE;
 
+
     fb_addr = info->mm.front_buffer->offset + info->LinearAddr;
     fb_size = ROUND_TO_PAGE(pScrn->displayWidth * pScrn->virtualY * info->CurrentLayout.pixel_bytes);
 
@@ -475,6 +476,10 @@ Bool radeon_update_dri_buffers(ScrnInfoPtr pScrn)
     RADEONInfoPtr  info  = RADEONPTR(pScrn);
     Bool success;
     RADEONSAREAPrivPtr sarea = DRIGetSAREAPrivate(pScrn->pScreen);
+
+    if (info->ChipFamily >= CHIP_FAMILY_R600)
+	return TRUE;
+
     success = radeon_update_dri_mappings(pScrn, sarea);
 
     if (!success)
@@ -1705,6 +1710,10 @@ Bool RADEONDRIDoMappings(ScreenPtr pScreen)
 				 * common mappings.  Add additional
 				 * mappings here.
 				 */
+
+    if (info->ChipFamily >= CHIP_FAMILY_R600)
+	return TRUE;
+
     if (!RADEONDRIMapInit(info, pScreen)) {
 	RADEONDRICloseScreen(pScreen);
 	return FALSE;

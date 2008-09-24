@@ -229,7 +229,10 @@ radeonShadowWindow(ScreenPtr screen, CARD32 row, CARD32 offset, int mode,
     stride = (pScrn->displayWidth * pScrn->bitsPerPixel) / 8;
     *size = stride;
 
-    return ((uint8_t *)info->FB + row * stride + offset);
+    if (info->drm_mm)
+        return ((uint8_t *)info->mm.front_buffer->map + row * stride + offset);
+    else
+        return ((uint8_t *)info->FB + row * stride + offset);
 }
 static Bool
 RADEONCreateScreenResources (ScreenPtr pScreen)
@@ -3155,10 +3158,12 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 			info->fbLocation = (value & 0xffff) << 16;
 	    }
         }
-	info->useEXA = TRUE;
-	info->drm_mm = TRUE;
-	info->directRenderingEnabled = TRUE;
+	if (info->ChipFamily < CHIP_FAMILY_R600) {
+		info->useEXA = TRUE;
+		info->directRenderingEnabled = TRUE;
+	}
 	info->new_cs = TRUE;
+	info->drm_mm = TRUE;
 	//	info->directRenderingDisabled = FALSE;
 #endif
     }
@@ -3615,7 +3620,7 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 #endif
 
 #if defined(XF86DRI) && defined(USE_XAA)
-    if (!info->useEXA && hasDRI) {
+    if (!info->useEXA && hasDRI && !info->drm_mm) {
 	info->dri->textureSize = -1;
 	if (xf86GetOptValInteger(info->Options, OPTION_FBTEX_PERCENT,
 				 &(info->dri->textureSize))) {
@@ -3633,7 +3638,7 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 #endif
 
 #ifdef USE_XAA
-    if (!info->useEXA && !hasDRI && !RADEONSetupMemXAA(scrnIndex, pScreen))
+    if (!info->useEXA && !hasDRI && !info->drm_mm && !RADEONSetupMemXAA(scrnIndex, pScreen))
 	return FALSE;
 #endif
 
