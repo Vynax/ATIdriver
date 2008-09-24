@@ -47,7 +47,7 @@ drmmode_xf86crtc_resize (ScrnInfoPtr scrn, int width, int height)
 	ret = drmmode_resize_fb(scrn, drmmode, width, height);
 	scrn->virtualX = width;
 	scrn->virtualY = height;
-	return ret;
+	return TRUE;
 }
 
 static void
@@ -131,7 +131,7 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 	DisplayModeRec saved_mode;
 	uint32_t *output_ids;
 	int output_count = 0;
-	int ret = TRUE;
+	Bool ret = TRUE;
 	int i;
 	int fb_id;
 	struct drm_mode_modeinfo kmode;
@@ -177,6 +177,9 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 	ErrorF("fb id is %d\n", fb_id);
 	drmModeSetCrtc(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
 		       fb_id, x, y, output_ids, output_count, &kmode);
+
+	if (crtc->scrn->pScreen)
+		xf86CrtcSetScreenSubpixelOrder(crtc->scrn->pScreen);
 
 
 done:
@@ -530,6 +533,7 @@ drmmode_output_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int num)
 
 	output->possible_crtcs = kencoder->possible_crtcs;
 	output->possible_clones = kencoder->possible_clones;
+
 	return;
 }
 
