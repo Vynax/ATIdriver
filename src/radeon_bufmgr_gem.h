@@ -11,4 +11,5 @@ void radeon_bufmgr_post_submit(dri_bufmgr *bufmgr);
 void radeon_bufmgr_pin(dri_bo *buf);
 void radeon_bufmgr_unpin(dri_bo *buf);
 uint32_t radeon_bufmgr_get_handle(dri_bo *buf);
+int radeon_bufmgr_gem_in_vram(dir_bo *buf);
 #endif

@@ -528,3 +528,10 @@ void radeon_bufmgr_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p, ui
 	radeon_bufmgr = (struct radeon_bufmgr *)(buf->bufmgr + 1);
 	radeon_bufmgr->emit_reloc(buf, head, count_p, read_domains, write_domain);
 }
+
+int radeon_bufmgr_gem_in_vram(dri_bo *buf)
+{
+	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
+	
+	return gem_bo->in_vram;
+}

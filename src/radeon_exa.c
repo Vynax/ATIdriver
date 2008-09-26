@@ -271,7 +271,8 @@ static Bool RADEONPrepareAccess(PixmapPtr pPix, int index)
 	if (driver_priv->bo) {
 	    int ret;
 
-	    RADEONCPFlushIndirect(pScrn, 0);
+	    if (radeon_bufmgr_gem_in_vram (driver_priv->bo))
+		RADEONCPFlushIndirect(pScrn, 0);
 
 	    //radeon_bufmgr_gem_wait_rendering(driver_priv->bo);
 
