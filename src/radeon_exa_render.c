@@ -1063,8 +1063,10 @@ static Bool FUNC_NAME(R300TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
     txpitch = exaGetPixmapPitch(pPix);
     txoffset = exaGetPixmapOffset(pPix);
 
-    if ((txoffset & 0x1f) != 0)
-	RADEON_FALLBACK(("Bad texture offset 0x%x\n", (int)txoffset));
+    if (!info->new_cs) {
+    	if ((txoffset & 0x1f) != 0)
+		RADEON_FALLBACK(("Bad texture offset 0x%x\n", (int)txoffset));
+    }
     if ((txpitch & 0x1f) != 0)
 	RADEON_FALLBACK(("Bad texture pitch 0x%x\n", (int)txpitch));
 
@@ -1299,7 +1301,7 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 
     colorpitch |= dst_format;
 
-    if ((dst_offset & 0x0f) != 0)
+    if (!info->new_cs && ((dst_offset & 0x0f) != 0))
 	RADEON_FALLBACK(("Bad destination offset 0x%x\n", (int)dst_offset));
     if (((dst_pitch >> pixel_shift) & 0x7) != 0)
 	RADEON_FALLBACK(("Bad destination pitch 0x%x\n", (int)dst_pitch));
