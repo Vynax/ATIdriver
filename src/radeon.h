@@ -419,6 +419,11 @@ typedef struct _atomBiosHandle *atomBiosHandlePtr;
 
 #define RADEON_POOL_GART 0
 #define RADEON_POOL_VRAM 1
+
+struct radeon_exa_pixmap_priv {
+    dri_bo *bo;
+    int flags;
+};
     
 typedef struct {
     uint32_t pci_device_id;

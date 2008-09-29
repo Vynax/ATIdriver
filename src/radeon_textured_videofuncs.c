@@ -92,6 +92,8 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 {
     RADEONInfoPtr info = RADEONPTR(pScrn);
     PixmapPtr pPixmap = pPriv->pPixmap;
+    struct radeon_exa_pixmap_priv *driver_priv;
+    dri_bo *dst_bo;
     uint32_t txformat;
     uint32_t txfilter, txformat0, txformat1, txoffset, txpitch;
     uint32_t dst_offset, dst_pitch, dst_format;
@@ -108,7 +110,13 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 
 #ifdef USE_EXA
     if (info->useEXA) {
-	dst_offset = exaGetPixmapOffset(pPixmap);
+	if (info->new_cs) {
+	    driver_priv = exaGetPixmapDriverPrivate(pPixmap);
+	    if (driver_priv)
+		dst_bo = driver_priv->bo;
+	} else {
+	    dst_offset = exaGetPixmapOffset(pPixmap);
+	}
 	dst_pitch = exaGetPixmapPitch(pPixmap);
     } else
 #endif
@@ -233,9 +241,8 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	OUT_ACCEL_REG(R300_TX_FORMAT2_0, txpitch);
 	OUT_ACCEL_REG(R300_TX_OFFSET_0, txoffset);
 	if (info->new_cs) {
-	    OUT_ACCEL_REG(R300_TX_OFFSET_0, txoffset);
-	    OUT_RELOC(info->mm.front_buffer->kernel_bo_handle);
-	    OUT_RELOC(info->mm.front_buffer->kernel_bo_handle, RADEON_GEM_DOMAIN_VRAM | RADEON_GEM_DOMAIN_GTT, 0);
+	    OUT_ACCEL_REG(R300_TX_OFFSET_0, 0);
+	    OUT_RELOC(pPriv->src_bo, RADEON_GEM_DOMAIN_VRAM | RADEON_GEM_DOMAIN_GTT, 0);
 	} else {
 	    txoffset += info->fbLocation + pScrn->fbOffset;
 	    OUT_ACCEL_REG(R300_TX_OFFSET_0, txoffset);
@@ -288,13 +295,19 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			    R300_TX_MAG_FILTER_NEAREST |
 			    (1 << R300_TX_ID_SHIFT));
 
-		BEGIN_ACCEL(6);
+		qwords = info->new_cs ? 8 : 6;
+		BEGIN_ACCEL(qwords);
 		OUT_ACCEL_REG(R300_TX_FILTER0_1, txfilter);
 		OUT_ACCEL_REG(R300_TX_FILTER1_1, 0);
 		OUT_ACCEL_REG(R300_TX_FORMAT0_1, txformat0);
 		OUT_ACCEL_REG(R300_TX_FORMAT1_1, txformat1);
 		OUT_ACCEL_REG(R300_TX_FORMAT2_1, txpitch);
-		OUT_ACCEL_REG(R300_TX_OFFSET_1, pPriv->bicubic_src_offset);
+		if (info->new_cs) {
+		    OUT_ACCEL_REG(R300_TX_OFFSET_1, 0);
+		    OUT_RELOC(pPriv->bicubic_bo, RADEON_GEM_DOMAIN_VRAM | RADEON_GEM_DOMAIN_GTT, 0);
+		} else {
+		    OUT_ACCEL_REG(R300_TX_OFFSET_1, pPriv->bicubic_src_offset);
+		}
 		FINISH_ACCEL();
 
 		/* Enable tex 1 */
@@ -1551,8 +1564,8 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	OUT_ACCEL_REG(R300_TX_ENABLE, txenable);
 
 	if (info->new_cs) {
-	    OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, dst_offset);
-	    OUT_RELOC(info->mm.front_buffer->kernel_bo_handle, 0, RADEON_GEM_DOMAIN_VRAM);
+	    OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, 0);
+	    OUT_RELOC(dst_bo, 0, RADEON_GEM_DOMAIN_VRAM);
 	} else {
 	    dst_offset += info->fbLocation + pScrn->fbOffset;
 	    OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, dst_offset);

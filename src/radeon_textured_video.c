@@ -415,6 +415,9 @@ RADEONPutImageTextured(ScrnInfoPtr pScrn,
 								size * 2, 64);
 	if (pPriv->video_offset == 0)
 	    return BadAlloc;
+
+	if (info->new_cs)
+	    pPriv->src_bo = pPriv->video_memory;
     }
 
     /* Bicubic filter loading */
@@ -425,6 +428,9 @@ RADEONPutImageTextured(ScrnInfoPtr pScrn,
 	pPriv->bicubic_src_offset = pPriv->bicubic_offset + info->fbLocation + pScrn->fbOffset;
 	if (pPriv->bicubic_offset == 0)
 		pPriv->bicubic_enabled = FALSE;
+
+	if (info->new_cs)
+	    pPriv->bicubic_bo = pPriv->bicubic_memory;
     }
 
     if (pDraw->type == DRAWABLE_WINDOW)
@@ -455,7 +461,14 @@ RADEONPutImageTextured(ScrnInfoPtr pScrn,
     npixels = ((((x2 + 0xffff) >> 16) + 1) & ~1) - left;
 
     pPriv->src_offset = pPriv->video_offset;
-    if (info->drm_mm) {
+    if (info->new_cs) {
+	int ret;
+	ret = dri_bo_map(pPriv->src_bo, 1);
+	if (ret) 
+	    return BadAlloc;
+      
+	pPriv->src_addr = pPriv->src_bo->virtual;
+    } else if (info->drm_mm) {
         pPriv->src_addr = (uint8_t *)(info->mm.front_buffer->map + pPriv->video_offset + (top * dstPitch));
     } else {
         if (info->ChipFamily >= CHIP_FAMILY_R600)
@@ -573,9 +586,24 @@ RADEONPutImageTextured(ScrnInfoPtr pScrn,
 
     /* Upload bicubic filter tex */
     if (pPriv->bicubic_enabled) {
-	if (info->ChipFamily < CHIP_FAMILY_R600)
-	    RADEONCopyData(pScrn, (uint8_t *)bicubic_tex_512,
-			   (uint8_t *)(info->FB + pPriv->bicubic_offset), 1024, 1024, 1, 512, 2);
+       if (info->ChipFamily < CHIP_FAMILY_R600) {
+	   uint8_t *bicubic_addr;
+	   int ret;
+
+	   if (info->new_cs) {
+	       ret = dri_bo_map(pPriv->bicubic_bo, 1);
+	       if (ret)
+		   return BadAlloc;
+
+	       bicubic_addr = pPriv->bicubic_bo->virtual;
+	   } else
+	       bicubic_addr = (uint8_t *)(info->FB + pPriv->bicubic_offset);
+	
+	   RADEONCopyData(pScrn, (uint8_t *)bicubic_tex_512, bicubic_addr, 1024, 1024, 1, 512, 2);
+	   
+	   if (info->new_cs)
+	       dri_bo_unmap(pPriv->bicubic_bo);
+       }
     }
 
     /* update cliplist */
@@ -593,6 +621,8 @@ RADEONPutImageTextured(ScrnInfoPtr pScrn,
     pPriv->w = width;
     pPriv->h = height;
 
+    if (info->new_cs)
+	dri_bo_unmap(pPriv->src_bo);
 #ifdef XF86DRI
     if (IS_R600_3D)
 	R600DisplayTexturedVideo(pScrn, pPriv);

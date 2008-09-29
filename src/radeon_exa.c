@@ -48,10 +48,6 @@
 #define RADEON_PIXMAP_IS_FRONTBUFFER 1
 
 /* quick hacks lolz */
-struct radeon_exa_pixmap_priv {
-    dri_bo *bo;
-    int flags;
-};
 
 /***********************************************************************/
 #define RINFO_FROM_SCREEN(pScr) ScrnInfoPtr pScrn =  xf86Screens[pScr->myNum]; \

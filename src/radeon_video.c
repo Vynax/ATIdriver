@@ -2200,7 +2200,7 @@ RADEONCopyData(
 
 #ifdef XF86DRI
 
-    if ( info->directRenderingEnabled && info->DMAForXv )
+    if ( info->directRenderingEnabled && info->DMAForXv && !info->new_cs )
     {
 	uint8_t *buf;
 	uint32_t bufPitch, dstPitchOff;
