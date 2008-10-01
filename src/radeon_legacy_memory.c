@@ -24,7 +24,7 @@ radeon_legacy_allocate_memory(ScrnInfoPtr pScrn,
     if (info->new_cs) {
 	dri_bo *video_bo;
 
-	video_bo = dri_bo_alloc(info->bufmgr, "xv pixmap", size, 4096);
+	video_bo = dri_bo_alloc(info->bufmgr, "xv pixmap", size, 4096, 0);
 
 	*mem_struct = video_bo;
 
@@ -110,7 +110,7 @@ radeon_legacy_free_memory(ScrnInfoPtr pScrn,
 
     if (info->new_cs) {
 	struct dri_bo *bo = mem_struct;
-	dri_bo_free(bo);
+	dri_bo_unreference(bo);
 	return;
     }
 #ifdef USE_EXA

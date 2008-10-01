@@ -7,7 +7,7 @@
 #ifndef RADEON_BUFMGR_H
 #define RADEON_BUFMGR_H
 
-#include "dri_bufmgr.h"
+#include "radeon_dri_bufmgr.h"
 
 struct radeon_bufmgr {
   void (*emit_reloc)(dri_bo *buf, uint32_t *head, uint32_t *count_p, uint32_t read_domains, uint32_t write_domain);

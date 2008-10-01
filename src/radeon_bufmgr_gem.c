@@ -49,7 +49,6 @@
 
 #include "xf86.h"
 #include "errno.h"
-#include "dri_bufmgr.h"
 #include "string.h"
 
 #include "radeon_reg.h"
@@ -475,12 +474,12 @@ radeon_bufmgr_gem_init(int fd)
 	bufmgr_gem->bufmgr.bo_map = dri_gem_bo_map;
 	bufmgr_gem->bufmgr.bo_unmap = dri_gem_bo_unmap;
 	bufmgr_gem->bufmgr.destroy = dri_bufmgr_gem_destroy;
-	bufmgr_gem->bufmgr.bo_wait_rendering = radeon_bufmgr_gem_wait_rendering;
+	//bufmgr_gem->bufmgr.bo_wait_rendering = radeon_bufmgr_gem_wait_rendering;
 	bufmgr_gem->radeon_bufmgr.emit_reloc = radeon_bufmgr_gem_emit_reloc;
 	/* Initialize the linked lists for BO reuse cache. */
 	for (i = 0; i < RADEON_GEM_BO_BUCKETS; i++)
 		bufmgr_gem->cache_bucket[i].tail = &bufmgr_gem->cache_bucket[i].head;
-	bufmgr_gem->bufmgr.debug = 0;
+	bufmgr_gem->bufmgr.debug = 1;
 	return &bufmgr_gem->bufmgr;
 }
 

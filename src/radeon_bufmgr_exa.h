@@ -1,7 +1,7 @@
 #ifndef RADEON_BUFMGR_EXA_H
 #define RADEON_BUFMGR_EXA_H
 
-#include "dri_bufmgr.h"
+#include "radeon_dri_bufmgr.h"
 
 dri_bufmgr *radeon_bufmgr_exa_init(ScrnInfoPtr pScrn);
 extern void radeon_bufmgr_exa_wait_rendering(dri_bo *bo);

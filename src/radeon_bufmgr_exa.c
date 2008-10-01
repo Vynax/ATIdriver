@@ -47,7 +47,6 @@
 
 #include "xf86.h"
 #include "errno.h"
-#include "dri_bufmgr.h"
 #include "string.h"
 
 #include "radeon_reg.h"
@@ -274,7 +273,7 @@ radeon_bufmgr_exa_init(ScrnInfoPtr pScrn)
 	bufmgr_exa->bufmgr.bo_map = dri_exa_bo_map;
 	bufmgr_exa->bufmgr.bo_unmap = dri_exa_bo_unmap;
 	bufmgr_exa->bufmgr.destroy = dri_bufmgr_exa_destroy;
-	bufmgr_exa->bufmgr.bo_wait_rendering = radeon_bufmgr_exa_wait_rendering;
+	//bufmgr_exa->bufmgr.bo_wait_rendering = radeon_bufmgr_exa_wait_rendering;
 	bufmgr_exa->radeon_bufmgr.emit_reloc = radeon_bufmgr_exa_emit_reloc;
 	return &bufmgr_exa->bufmgr;
 }

@@ -253,7 +253,7 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 	rotate_pitch = crtc->scrn->displayWidth * drmmode->cpp;
 	size = rotate_pitch * height;
 
-	rotate_bo = dri_bo_alloc(drmmode->bufmgr, "rotate", size, 0);
+	rotate_bo = dri_bo_alloc(drmmode->bufmgr, "rotate", size, 0, 0);
 	if (rotate_bo == NULL)
 		return NULL;
 

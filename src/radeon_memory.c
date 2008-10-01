@@ -420,7 +420,7 @@ dri_bo *radeon_create_rotate_bo(ScrnInfoPtr pScrn, int size)
 	RADEONInfoPtr info = RADEONPTR(pScrn);
 	dri_bo *bo;
 
-	bo = dri_bo_alloc(info->bufmgr, "rotate", size, 0);
+	bo = dri_bo_alloc(info->bufmgr, "rotate", size, 0, 0);
 
 	radeon_bufmgr_pin(bo);
 	return bo;

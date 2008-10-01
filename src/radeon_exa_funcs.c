@@ -388,10 +388,8 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 	    offset = (x * bpp / 8) + (y * dst_pitch);
 
 	    while (bo_height--) {
-		ret = dri_bo_subdata(driver_priv->bo, offset, bo_width,
+		dri_bo_subdata(driver_priv->bo, offset, bo_width,
 				     src);
-		if (ret == -1)
-		    return FALSE;
 		    
 		src += src_pitch;
 		offset += dst_pitch;

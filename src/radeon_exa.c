@@ -44,6 +44,7 @@
 #include "radeon_version.h"
 
 #include "xf86.h"
+#include "radeon_bufmgr_gem.h"
 
 #define RADEON_PIXMAP_IS_FRONTBUFFER 1
 
@@ -402,7 +403,7 @@ void *RADEONEXACreatePixmap(ScreenPtr pScreen, int size, int align)
 	return new_priv;
 
     new_priv->bo = dri_bo_alloc(info->bufmgr, "exa pixmap", size,
-				align);
+				align, 0);
     if (!new_priv->bo) {
 	xfree(new_priv);
 	ErrorF("Failed to alloc memory\n");
