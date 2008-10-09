@@ -480,7 +480,7 @@ radeon_bufmgr_gem_init(int fd)
 	/* Initialize the linked lists for BO reuse cache. */
 	for (i = 0; i < RADEON_GEM_BO_BUCKETS; i++)
 		bufmgr_gem->cache_bucket[i].tail = &bufmgr_gem->cache_bucket[i].head;
-	bufmgr_gem->bufmgr.debug = 1;
+	bufmgr_gem->bufmgr.debug = 0;
 	return &bufmgr_gem->bufmgr;
 }
 
