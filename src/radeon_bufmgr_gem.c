@@ -353,6 +353,27 @@ void radeon_bufmgr_gem_wait_rendering(dri_bo *buf)
 	return;
 }
 
+dri_bo *
+radeon_bo_gem_create_from_handle(dri_bufmgr *bufmgr,
+				 uint32_t handle, unsigned long size)
+{
+    dri_bo_gem *bo_gem;
+
+    bo_gem = calloc(1, sizeof(*bo_gem));
+    if (!bo_gem)
+	return NULL;
+
+    bo_gem->bo.size = size;
+    bo_gem->bo.offset = 0;
+    bo_gem->bo.virtual = NULL;
+    bo_gem->bo.bufmgr = bufmgr;
+    bo_gem->name = 0;
+    bo_gem->refcount = 1;
+    bo_gem->gem_handle = handle;
+
+    return &bo_gem->bo;
+}
+
 /**
  * Returns a dri_bo wrapping the given buffer object handle.
  *
@@ -364,13 +385,8 @@ radeon_bo_gem_create_from_name(dri_bufmgr *bufmgr, const char *name,
 			       unsigned int handle)
 {
     dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bufmgr;
-    dri_bo_gem *bo_gem;
     int ret;
     struct drm_gem_open open_arg;
-
-    bo_gem = calloc(1, sizeof(*bo_gem));
-    if (!bo_gem)
-	return NULL;
 
     memset(&open_arg, 0, sizeof(open_arg));
     open_arg.name = handle;
@@ -378,18 +394,11 @@ radeon_bo_gem_create_from_name(dri_bufmgr *bufmgr, const char *name,
     if (ret != 0) {
 	fprintf(stderr, "Couldn't reference %s handle 0x%08x: %s\n",
 	       name, handle, strerror(-ret));
-	free(bo_gem);
 	return NULL;
     }
-    bo_gem->bo.size = open_arg.size;
-    bo_gem->bo.offset = 0;
-    bo_gem->bo.virtual = NULL;
-    bo_gem->bo.bufmgr = bufmgr;
-    bo_gem->name = name;
-    bo_gem->refcount = 1;
-    bo_gem->gem_handle = open_arg.handle;
 
-    return &bo_gem->bo;
+    return radeon_bo_gem_create_from_handle(bufmgr,
+					    open_arg.handle, open_arg.size);
 }
 
 #define BUF_OUT_RING(x)	 do {			\

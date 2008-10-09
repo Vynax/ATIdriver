@@ -31,6 +31,7 @@
 
 #ifdef XF86DRM_MODE
 #include "radeon.h"
+#include "radeon_reg.h"
 #include "sarea.h"
 
 static Bool drmmode_resize_fb(ScrnInfoPtr scrn, drmmode_ptr drmmode, int width, int height);
@@ -119,6 +120,71 @@ drmmode_crtc_dpms(xf86CrtcPtr drmmode_crtc, int mode)
 
 }
 
+static PixmapPtr
+create_pixmap_for_fb(drmmode_ptr drmmode, ScrnInfoPtr pScrn, drmModeFBPtr fb)
+{
+	ScreenPtr pScreen = pScrn->pScreen;
+	PixmapPtr pPixmap;
+	struct radeon_exa_pixmap_priv *driver_priv;
+	dri_bo *bo;
+
+	pPixmap = (*pScreen->CreatePixmap)(pScreen, 0, 0, fb->depth, 0);
+	driver_priv = exaGetPixmapDriverPrivate(pPixmap);
+	if (!driver_priv) {
+		(*pScreen->DestroyPixmap)(pPixmap);
+		return NULL;
+	}
+
+	miModifyPixmapHeader(pPixmap, fb->width, fb->height, fb->depth,
+                             pScrn->bitsPerPixel, fb->pitch, NULL);
+
+	bo = radeon_bo_gem_create_from_handle(drmmode->bufmgr,
+					      fb->handle,
+					      fb->pitch * fb->height);
+	driver_priv->bo = bo;
+	if (bo == NULL) {
+		(*pScreen->DestroyPixmap)(pPixmap);
+		return NULL;
+	}
+
+    	return pPixmap;
+}
+
+static void
+copy_fb_contents (drmmode_ptr drmmode,
+		  ScrnInfoPtr pScrn,
+		  unsigned int dest_id, int x, int y, unsigned int src_id)
+{
+	RADEONInfoPtr info = RADEONPTR(pScrn);
+	drmModeFBPtr dest_fb, src_fb;
+	dri_bo *dest_bo, *src_bo;
+	PixmapPtr src_pixmap, dest_pixmap;
+	ScreenPtr pScreen = pScrn->pScreen;
+
+	dest_fb = drmModeGetFB(drmmode->fd, dest_id);
+	src_fb = drmModeGetFB(drmmode->fd, src_id);
+	if (src_fb == NULL) {
+		ErrorF("failed to get old fb, id %d\n", src_id);
+		return;
+	}
+
+	dest_pixmap = create_pixmap_for_fb(drmmode, pScrn, dest_fb);
+	src_pixmap = create_pixmap_for_fb(drmmode, pScrn, src_fb);
+
+	info->accel_state->exa->PrepareCopy (src_pixmap, dest_pixmap,
+					     0, 0, GXcopy, 0xffffff);
+	info->accel_state->exa->Copy (dest_pixmap, 0, 0, x, y,
+			 	      src_fb->width, src_fb->height);
+	info->accel_state->exa->DoneCopy (dest_pixmap);
+	RADEONCPFlushIndirect(pScrn, 0);
+
+	(*pScreen->DestroyPixmap)(dest_pixmap);
+	(*pScreen->DestroyPixmap)(src_pixmap);
+
+	drmFree(dest_fb);
+	drmFree(src_fb);
+}
+
 static Bool
 drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		     Rotation rotation, int x, int y)
@@ -174,7 +240,8 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 	fb_id = drmmode->fb_id;
 	if (drmmode_crtc->rotate_fb_id)
 		fb_id = drmmode_crtc->rotate_fb_id;
-	ErrorF("fb id is %d\n", fb_id);
+ 	copy_fb_contents (drmmode, crtc->scrn, fb_id, x, y,
+ 			  drmmode_crtc->mode_crtc->buffer_id);
 	drmModeSetCrtc(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
 		       fb_id, x, y, output_ids, output_count, &kmode);
 

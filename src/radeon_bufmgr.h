@@ -16,6 +16,8 @@ struct radeon_bufmgr {
 dri_bufmgr *radeon_bufmgr_gem_init(int fd);
 dri_bo *radeon_bo_gem_create_from_name(dri_bufmgr *bufmgr, const char *name,
 				       unsigned int handle);
+dri_bo *radeon_bo_gem_create_from_handle(dri_bufmgr *bufmgr,
+					 uint32_t handle, unsigned long size);
 
 void radeon_bufmgr_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p, uint32_t read_domains, uint32_t write_domain);
 

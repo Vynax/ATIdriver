@@ -122,6 +122,7 @@ if test "$DRI" = yes; then
         if test "x$DRM_MODE" = xyes; then
                 AC_DEFINE(XF86DRM_MODE,1,[DRM kernel modesetting])
         fi
+	CFLAGS="$save_CFLAGS"
 fi
 
 save_CFLAGS="$CFLAGS"
