@@ -303,7 +303,6 @@ typedef union {
 #define RADEON_INDEX_PRIM_OFFSET	20
 
 #define RADEON_SCRATCH_REG_OFFSET	32
-#define R600_SCRATCH_REG_OFFSET	        256
 
 #define RADEON_NR_SAREA_CLIPRECTS	12
 
@@ -454,6 +453,15 @@ typedef struct {
 	int pfCurrentPage;	/* which buffer is being displayed? */
 	int crtc2_base;		/* CRTC2 frame offset */
 	int tiling_enabled;	/* set by drm, read by 2d + 3d clients */
+
+	unsigned int last_fence;
+
+	uint32_t front_handle;
+	uint32_t back_handle;
+	uint32_t depth_handle;
+	uint32_t front_pitch;
+	uint32_t back_pitch;
+	uint32_t depth_pitch;
 } drm_radeon_sarea_t;
 
 /* WARNING: If you change any of these defines, make sure to change the
@@ -494,6 +502,18 @@ typedef struct {
 #define DRM_RADEON_SURF_ALLOC 0x1a
 #define DRM_RADEON_SURF_FREE  0x1b
 
+#define DRM_RADEON_GEM_INFO   0x1c
+#define DRM_RADEON_GEM_CREATE 0x1d
+#define DRM_RADEON_GEM_MMAP   0x1e
+#define DRM_RADEON_GEM_PIN    0x1f
+#define DRM_RADEON_GEM_UNPIN  0x20
+#define DRM_RADEON_GEM_PREAD  0x21
+#define DRM_RADEON_GEM_PWRITE 0x22
+#define DRM_RADEON_GEM_SET_DOMAIN 0x23
+#define DRM_RADEON_GEM_INDIRECT 0x24 // temporary for X server
+
+#define DRM_RADEON_CS           0x25
+
 #define DRM_IOCTL_RADEON_CP_INIT    DRM_IOW( DRM_COMMAND_BASE + DRM_RADEON_CP_INIT, drm_radeon_init_t)
 #define DRM_IOCTL_RADEON_CP_START   DRM_IO(  DRM_COMMAND_BASE + DRM_RADEON_CP_START)
 #define DRM_IOCTL_RADEON_CP_STOP    DRM_IOW( DRM_COMMAND_BASE + DRM_RADEON_CP_STOP, drm_radeon_cp_stop_t)
@@ -522,16 +542,28 @@ typedef struct {
 #define DRM_IOCTL_RADEON_SURF_ALLOC DRM_IOW( DRM_COMMAND_BASE + DRM_RADEON_SURF_ALLOC, drm_radeon_surface_alloc_t)
 #define DRM_IOCTL_RADEON_SURF_FREE  DRM_IOW( DRM_COMMAND_BASE + DRM_RADEON_SURF_FREE, drm_radeon_surface_free_t)
 
+#define DRM_IOCTL_RADEON_GEM_INFO   DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_GEM_INFO, struct drm_radeon_gem_info)
+#define DRM_IOCTL_RADEON_GEM_CREATE   DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_GEM_CREATE, struct drm_radeon_gem_create)
+#define DRM_IOCTL_RADEON_GEM_MMAP   DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_GEM_MMAP, struct drm_radeon_gem_mmap)
+#define DRM_IOCTL_RADEON_GEM_PIN   DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_GEM_PIN, struct drm_radeon_gem_pin)
+#define DRM_IOCTL_RADEON_GEM_UNPIN   DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_GEM_UNPIN, struct drm_radeon_gem_unpin)
+#define DRM_IOCTL_RADEON_GEM_PREAD   DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_GEM_PREAD, struct drm_radeon_gem_pread)
+#define DRM_IOCTL_RADEON_GEM_PWRITE   DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_GEM_PWRITE, struct drm_radeon_gem_pwrite)
+#define DRM_IOCTL_RADEON_GEM_SET_DOMAIN  DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_GEM_SET_DOMAIN, struct drm_radeon_gem_set_domain)
+#define DRM_IOCTL_RADEON_GEM_INDIRECT DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_GEM_INDIRECT, struct drm_radeon_gem_indirect)
+
+#define DRM_IOCTL_RADEON_CS DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_CS, struct drm_radeon_cs)
+
+
 typedef struct drm_radeon_init {
 	enum {
 		RADEON_INIT_CP = 0x01,
 		RADEON_CLEANUP_CP = 0x02,
 		RADEON_INIT_R200_CP = 0x03,
-		RADEON_INIT_R300_CP = 0x04,
-		RADEON_INIT_R600_CP = 0x05,
+		RADEON_INIT_R300_CP = 0x04
 	} func;
 	unsigned long sarea_priv_offset;
-	int is_pci; /* for overriding only */
+	int is_pci;
 	int cp_mode;
 	int gart_size;
 	int ring_size;
@@ -581,7 +613,7 @@ typedef struct drm_radeon_clear {
 	unsigned int clear_depth;
 	unsigned int color_mask;
 	unsigned int depth_mask;	/* misnamed field:  should be stencil */
-	drm_radeon_clear_rect_t  *depth_boxes;
+	drm_radeon_clear_rect_t *depth_boxes;
 } drm_radeon_clear_t;
 
 typedef struct drm_radeon_vertex {
@@ -607,9 +639,9 @@ typedef struct drm_radeon_vertex2 {
 	int idx;		/* Index of vertex buffer */
 	int discard;		/* Client finished with buffer? */
 	int nr_states;
-	drm_radeon_state_t  *state;
+	drm_radeon_state_t *state;
 	int nr_prims;
-	drm_radeon_prim_t  *prim;
+	drm_radeon_prim_t *prim;
 } drm_radeon_vertex2_t;
 
 /* v1.3 - obsoletes drm_radeon_vertex2
@@ -624,15 +656,15 @@ typedef struct drm_radeon_vertex2 {
  */
 typedef struct drm_radeon_cmd_buffer {
 	int bufsz;
-	char  *buf;
+	char *buf;
 	int nbox;
-	struct drm_clip_rect  *boxes;
+	struct drm_clip_rect *boxes;
 } drm_radeon_cmd_buffer_t;
 
 typedef struct drm_radeon_tex_image {
 	unsigned int x, y;	/* Blit coordinates */
 	unsigned int width, height;
-	const void  *data;
+	const void *data;
 } drm_radeon_tex_image_t;
 
 typedef struct drm_radeon_texture {
@@ -641,11 +673,11 @@ typedef struct drm_radeon_texture {
 	int format;
 	int width;		/* Texture image coordinates */
 	int height;
-	drm_radeon_tex_image_t  *image;
+	drm_radeon_tex_image_t *image;
 } drm_radeon_texture_t;
 
 typedef struct drm_radeon_stipple {
-	unsigned int  *mask;
+	unsigned int *mask;
 } drm_radeon_stipple_t;
 
 typedef struct drm_radeon_indirect {
@@ -654,9 +686,6 @@ typedef struct drm_radeon_indirect {
 	int end;
 	int discard;
 } drm_radeon_indirect_t;
-
-#define RADEON_INDIRECT_DISCARD (1 << 0)
-#define RADEON_INDIRECT_NOFLUSH (1 << 1)
 
 /* enum for card type parameters */
 #define RADEON_CARD_PCI 0
@@ -683,10 +712,11 @@ typedef struct drm_radeon_indirect {
 #define RADEON_PARAM_VBLANK_CRTC           13   /* VBLANK CRTC */
 #define RADEON_PARAM_FB_LOCATION           14   /* FB location */
 #define RADEON_PARAM_NUM_GB_PIPES          15   /* num GB pipes */
+#define RADEON_PARAM_KERNEL_MM             16
 
 typedef struct drm_radeon_getparam {
 	int param;
-	void  *value;
+	void *value;
 } drm_radeon_getparam_t;
 
 /* 1.6: Set up a memory manager for regions of shared memory:
@@ -698,7 +728,7 @@ typedef struct drm_radeon_mem_alloc {
 	int region;
 	int alignment;
 	int size;
-	int  *region_offset;	/* offset from start of fb or GART */
+	int *region_offset;	/* offset from start of fb or GART */
 } drm_radeon_mem_alloc_t;
 
 typedef struct drm_radeon_mem_free {
@@ -715,7 +745,7 @@ typedef struct drm_radeon_mem_init_heap {
 /* 1.6: Userspace can request & wait on irq's:
  */
 typedef struct drm_radeon_irq_emit {
-	int  *irq_seq;
+	int *irq_seq;
 } drm_radeon_irq_emit_t;
 
 typedef struct drm_radeon_irq_wait {
@@ -734,10 +764,10 @@ typedef struct drm_radeon_setparam {
 #define RADEON_SETPARAM_FB_LOCATION    1	/* determined framebuffer location */
 #define RADEON_SETPARAM_SWITCH_TILING  2	/* enable/disable color tiling */
 #define RADEON_SETPARAM_PCIGART_LOCATION 3	/* PCI Gart Location */
-
 #define RADEON_SETPARAM_NEW_MEMMAP 4		/* Use new memory map */
 #define RADEON_SETPARAM_PCIGART_TABLE_SIZE 5    /* PCI GART Table Size */
 #define RADEON_SETPARAM_VBLANK_CRTC 6           /* VBLANK CRTC */
+#define RADEON_SETPARAM_MM_INIT 7               /* DDX wants memory manager but has no modesetting */
 /* 1.14: Clients can allocate/free a surface
  */
 typedef struct drm_radeon_surface_alloc {
@@ -752,5 +782,103 @@ typedef struct drm_radeon_surface_free {
 
 #define	DRM_RADEON_VBLANK_CRTC1		1
 #define	DRM_RADEON_VBLANK_CRTC2		2
+
+#define RADEON_GEM_DOMAIN_CPU 0x1   // Cached CPU domain
+#define RADEON_GEM_DOMAIN_GTT 0x2   // GTT or cache flushed
+#define RADEON_GEM_DOMAIN_VRAM 0x4  // VRAM domain
+
+/* return to userspace start/size of gtt and vram apertures */
+struct drm_radeon_gem_info {
+	uint64_t gart_start;
+	uint64_t gart_size;
+	uint64_t vram_start;
+	uint64_t vram_size;
+	uint64_t vram_visible;
+};
+
+struct drm_radeon_gem_create {
+	uint64_t size;
+	uint64_t alignment;
+	uint32_t handle;
+	uint32_t initial_domain; // to allow VRAM to be created
+	uint32_t no_backing_store; // for VRAM objects - select whether they need backing store
+	// pretty much front/back/depth don't need it - other things do
+};
+
+struct drm_radeon_gem_mmap {
+	uint32_t handle;
+	uint32_t pad;
+	uint64_t offset;
+	uint64_t size;
+	uint64_t addr_ptr;
+};
+
+struct drm_radeon_gem_set_domain {
+	uint32_t handle;
+	uint32_t read_domains;
+	uint32_t write_domain;
+};
+
+struct drm_radeon_gem_exec_buffer {
+};
+
+struct drm_radeon_gem_pin {
+	uint32_t handle;
+	uint32_t pin_domain;
+	uint64_t alignment;
+	uint64_t offset;
+};
+
+struct drm_radeon_gem_unpin {
+	uint32_t handle;
+	uint32_t pad;
+};
+
+struct drm_radeon_gem_busy {
+	uint32_t handle;
+	uint32_t busy;
+};
+
+struct drm_radeon_gem_pread {
+	/** Handle for the object being read. */
+	uint32_t handle;
+	uint32_t pad;
+	/** Offset into the object to read from */
+	uint64_t offset;
+	/** Length of data to read */
+	uint64_t size;
+	/** Pointer to write the data into. */
+	uint64_t data_ptr;	/* void *, but pointers are not 32/64 compatible */
+};
+
+struct drm_radeon_gem_pwrite {
+	/** Handle for the object being written to. */
+	uint32_t handle;
+	uint32_t pad;
+	/** Offset into the object to write to */
+	uint64_t offset;
+	/** Length of data to write */
+	uint64_t size;
+	/** Pointer to read the data from. */
+	uint64_t data_ptr;	/* void *, but pointers are not 32/64 compatible */
+};
+
+struct drm_radeon_gem_indirect {
+	uint32_t handle;
+	uint32_t used;
+};
+
+/* New interface which obsolete all previous interface.
+ */
+
+
+struct drm_radeon_cs {
+//	uint32_t     *packets;
+	uint32_t            dwords;
+	uint32_t            cs_id;
+	uint64_t            packets;
+
+};
+
 
 #endif

@@ -381,7 +381,7 @@ uint32_t radeon_name_buffer(ScrnInfoPtr pScrn, struct radeon_memory *mem)
     if (mem && mem->kernel_bo_handle) {
 	if (!mem->kernel_name) {
 	    flink.handle = mem->kernel_bo_handle;
-	    ret = ioctl(info->drmFD, DRM_IOCTL_GEM_FLINK, &flink);
+	    ret = ioctl(info->dri->drmFD, DRM_IOCTL_GEM_FLINK, &flink);
 	    if (ret != 0) {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "[drm] failed to name buffer %d\n", -errno);
@@ -394,7 +394,7 @@ uint32_t radeon_name_buffer(ScrnInfoPtr pScrn, struct radeon_memory *mem)
     return -1;
 }
 
-static void radeon_update_sarea(ScrnInfoPtr pScrn, RADEONSAREAPrivPtr sarea)
+static void radeon_update_sarea(ScrnInfoPtr pScrn, drm_radeon_sarea_t * sarea)
 {
     RADEONInfoPtr  info  = RADEONPTR(pScrn);
     int cpp = info->CurrentLayout.pixel_bytes;
@@ -406,9 +406,9 @@ static void radeon_update_sarea(ScrnInfoPtr pScrn, RADEONSAREAPrivPtr sarea)
 	/* get handles and use them */
 	sarea->front_handle = radeon_name_buffer(pScrn, info->mm.front_buffer);
 
-	sarea->front_pitch         = info->frontPitch * cpp;
-	sarea->back_pitch         = info->backPitch * cpp;
-	sarea->depth_pitch         = info->depthPitch * cpp;
+	sarea->front_pitch         = info->dri->frontPitch * cpp;
+	sarea->back_pitch         = info->dri->backPitch * cpp;
+	sarea->depth_pitch         = info->dri->depthPitch * cpp;
 	ErrorF("front handle is %x\n", sarea->front_handle);
 	sarea->back_handle = radeon_name_buffer(pScrn, info->mm.back_buffer);
 	sarea->depth_handle = radeon_name_buffer(pScrn, info->mm.depth_buffer);
@@ -421,17 +421,17 @@ static void radeon_update_sarea(ScrnInfoPtr pScrn, RADEONSAREAPrivPtr sarea)
 #define ROUND_TO_PAGE(x)               ROUND_TO((x), radeon_drm_page_size)
 
 static void
-radeon_update_screen_private(ScrnInfoPtr pScrn, RADEONSAREAPrivPtr sarea)
+radeon_update_screen_private(ScrnInfoPtr pScrn, drm_radeon_sarea_t * sarea)
 {
     RADEONInfoPtr  info  = RADEONPTR(pScrn);
     RADEONDRIPtr pRADEONDRI;
 
-    pRADEONDRI                    = (RADEONDRIPtr)info->pDRIInfo->devPrivate;
-    info->pDRIInfo->frameBufferPhysicalAddress = (char *) info->LinearAddr;
-    info->pDRIInfo->frameBufferStride = pScrn->displayWidth * info->CurrentLayout.pixel_bytes;
-    info->pDRIInfo->frameBufferSize = ROUND_TO_PAGE(pScrn->displayWidth * pScrn->virtualY * info->CurrentLayout.pixel_bytes);
+    pRADEONDRI                    = (RADEONDRIPtr)info->dri->pDRIInfo->devPrivate;
+    info->dri->pDRIInfo->frameBufferPhysicalAddress = (char *) info->LinearAddr;
+    info->dri->pDRIInfo->frameBufferStride = pScrn->displayWidth * info->CurrentLayout.pixel_bytes;
+    info->dri->pDRIInfo->frameBufferSize = ROUND_TO_PAGE(pScrn->displayWidth * pScrn->virtualY * info->CurrentLayout.pixel_bytes);
 #if DRI_DRIVER_FRAMEBUFFER_MAP
-    info->pDRIInfo->hFrameBuffer = info->fb_map_handle;
+    info->dri->pDRIInfo->hFrameBuffer = info->fb_map_handle;
 #endif
     /* overload these */
     pRADEONDRI->gartTexHandle = radeon_name_buffer(pScrn, info->mm.gart_texture_buffer);
@@ -442,7 +442,7 @@ radeon_update_screen_private(ScrnInfoPtr pScrn, RADEONSAREAPrivPtr sarea)
 }
 
 static Bool
-radeon_update_dri_mappings(ScrnInfoPtr pScrn, RADEONSAREAPrivPtr sarea)
+radeon_update_dri_mappings(ScrnInfoPtr pScrn, drm_radeon_sarea_t * sarea)
 {
     RADEONInfoPtr  info  = RADEONPTR(pScrn);
     uint32_t fb_addr, fb_size;
@@ -456,11 +456,11 @@ radeon_update_dri_mappings(ScrnInfoPtr pScrn, RADEONSAREAPrivPtr sarea)
     fb_size = ROUND_TO_PAGE(pScrn->displayWidth * pScrn->virtualY * info->CurrentLayout.pixel_bytes);
 
     if (info->fb_map_handle) {
-	drmRmMap(info->drmFD, info->fb_map_handle);
+	drmRmMap(info->dri->drmFD, info->fb_map_handle);
 	info->fb_map_handle = 0;
     }
 	
-    ret = drmAddMap(info->drmFD, fb_addr, fb_size, DRM_FRAME_BUFFER, 0,
+    ret = drmAddMap(info->dri->drmFD, fb_addr, fb_size, DRM_FRAME_BUFFER, 0,
 		    &info->fb_map_handle);
 
     ErrorF("adding fb map from %x for %x ret %d %x\n", fb_addr, fb_size, ret, info->fb_map_handle);
@@ -471,11 +471,12 @@ radeon_update_dri_mappings(ScrnInfoPtr pScrn, RADEONSAREAPrivPtr sarea)
     return TRUE;
 }
 
-Bool radeon_update_dri_buffers(ScrnInfoPtr pScrn)
+Bool radeon_update_dri_buffers(ScreenPtr pScreen)
 {
+    ScrnInfoPtr    pScrn = xf86Screens[pScreen->myNum];
     RADEONInfoPtr  info  = RADEONPTR(pScrn);
     Bool success;
-    RADEONSAREAPrivPtr sarea = DRIGetSAREAPrivate(pScrn->pScreen);
+    drm_radeon_sarea_t * sarea = DRIGetSAREAPrivate(pScreen);
 
     if (info->ChipFamily >= CHIP_FAMILY_R600)
 	return TRUE;
@@ -864,8 +865,8 @@ static void RADEONDRIInitGARTValues(RADEONInfoPtr info)
       l = RADEONMinBits((s-1) / RADEON_NR_TEX_REGIONS);
       l = RADEONMinBits((s-1) / RADEON_NR_TEX_REGIONS);
       if (l < RADEON_LOG_TEX_GRANULARITY) l = RADEON_LOG_TEX_GRANULARITY;
-      info->gartTexMapSize   = (s >> l) << l;
-      info->log2GARTTexGran  = l;
+      info->dri->gartTexMapSize   = (s >> l) << l;
+      info->dri->log2GARTTexGran  = l;
     }
 
 }
@@ -1275,9 +1276,10 @@ static Bool RADEONDRIPciInit(RADEONInfoPtr info, ScreenPtr pScreen)
  	       "[pci] ring read ptr handle = 0x%08x\n",
 	       (unsigned int)info->dri->ringReadPtrHandle);
 
+#if 0
     if (drmMap(info->dri->drmFD, info->dri->ringReadPtrHandle, info->dri->ringReadMapSize,
 	       &info->dri->ringReadPtr) < 0) {
-#if 0
+
 	xf86DrvMsg(pScreen->myNum, X_ERROR,
 		   "[pci] Could not map ring read ptr\n");
 	return FALSE;
@@ -1650,7 +1652,7 @@ Bool RADEONDRIGetVersion(ScrnInfoPtr pScrn)
 	goto fail;
     }
 
-    if (info->pKernelDRMVersion->version_minor >= 30) {
+    if (info->dri->pKernelDRMVersion->version_minor >= 30) {
 	    struct drm_radeon_gem_info mminfo;
 
 	    if (!drmCommandWriteRead(fd, DRM_RADEON_GEM_INFO, &mminfo, sizeof(mminfo)))
@@ -1663,7 +1665,6 @@ Bool RADEONDRIGetVersion(ScrnInfoPtr pScrn)
 		    ErrorF("initing %llx %llx %llx %llx\n", mminfo.gart_start,
 			   mminfo.gart_size, mminfo.vram_start, mminfo.vram_size);
 	    }
->>>>>>> add initial support for a kernel memory manager:src/radeon_dri.c
     }
 
     drmClose(fd);
@@ -1705,7 +1706,7 @@ Bool RADEONDRIDoMappings(ScreenPtr pScreen)
 {
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     RADEONInfoPtr  info    = RADEONPTR(pScrn);
-    RADEONSAREAPrivPtr  pSAREAPriv = DRIGetSAREAPrivate(pScreen);
+    drm_radeon_sarea_t *  pSAREAPriv = DRIGetSAREAPrivate(pScreen);
 				/* DRIScreenInit doesn't add all the
 				 * common mappings.  Add additional
 				 * mappings here.
@@ -1816,7 +1817,7 @@ Bool RADEONDRIScreenInit(ScreenPtr pScreen)
     } else
 #endif
     {
-	pDRIInfo->frameBufferPhysicalAddress = (void *)info->LinearAddr + info->frontOffset;
+	pDRIInfo->frameBufferPhysicalAddress = (void *)info->LinearAddr + info->dri->frontOffset;
 	pDRIInfo->frameBufferSize            = info->FbMapSize - info->FbSecureSize;
 	pDRIInfo->frameBufferStride          = (pScrn->displayWidth *
 						    info->CurrentLayout.pixel_bytes);
@@ -1917,7 +1918,7 @@ Bool RADEONDRIScreenInit(ScreenPtr pScreen)
 	 * the wrong map out of GetDeviceInfo, which will break AIGLX.
 	 */
 	DRIGetDeviceInfo(pScreen, &fb_handle, &tmp, &tmp, &tmp, &tmp, &ptmp);
-	drmRmMap(info->drmFD, fb_handle);
+	drmRmMap(info->dri->drmFD, fb_handle);
 
 	xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
 		   "Removed DRI frontbuffer mapping in compatibility mode.\n");

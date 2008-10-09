@@ -2203,15 +2203,9 @@ static Bool RADEONPreInitInt10(ScrnInfoPtr pScrn, xf86Int10InfoPtr *ppInt10)
     return TRUE;
 }
 
-#ifdef XF86DRI
-static Bool RADEONPreInitDRI(ScrnInfoPtr pScrn)
+static Bool radeon_alloc_dri(ScrnInfoPtr pScrn)
 {
     RADEONInfoPtr  info = RADEONPTR(pScrn);
-    MessageType    from;
-    char          *reason;
-
-    info->directRenderingEnabled = FALSE;
-    info->directRenderingInited = FALSE;
 
     if (!(info->dri = xcalloc(1, sizeof(struct radeon_dri)))) {
 	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,"Unable to allocate dri rec!\n");
@@ -2222,6 +2216,22 @@ static Bool RADEONPreInitDRI(ScrnInfoPtr pScrn)
 	xf86DrvMsg(pScrn->scrnIndex, X_ERROR,"Unable to allocate cp rec!\n");
 	return FALSE;
     }
+    return TRUE;
+}
+
+#ifdef XF86DRI
+static Bool RADEONPreInitDRI(ScrnInfoPtr pScrn)
+{
+    RADEONInfoPtr  info = RADEONPTR(pScrn);
+    MessageType    from;
+    char          *reason;
+
+    info->directRenderingEnabled = FALSE;
+    info->directRenderingInited = FALSE;
+
+    if (!radeon_alloc_dri(pScrn))
+	return FALSE;
+
     info->cp->CPInUse = FALSE;
     info->cp->CPStarted = FALSE;
     info->cp->CPusecTimeout = RADEON_DEFAULT_CP_TIMEOUT;
@@ -3117,6 +3127,9 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
     } else {
 #ifdef XF86DRM_MODE
 	char *bus_id;
+   	 if (!radeon_alloc_dri(pScrn))
+		return FALSE;
+
 	bus_id = DRICreatePCIBusID(info->PciInfo);
 	if (drmmode_pre_init(pScrn, &info->drmmode, bus_id, "radeon", pScrn->bitsPerPixel / 8) == FALSE) {
 	    xfree(bus_id);
@@ -3125,13 +3138,13 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 	}
 
 	info->drmmode.create_new_fb = radeon_create_new_fb;
-	info->drmFD = info->drmmode.fd;
+	info->dri->drmFD = info->drmmode.fd;
 	xfree(bus_id);
 	 
         {
 	    struct drm_radeon_gem_info mminfo;
 
-	    if (!drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_INFO, &mminfo, sizeof(mminfo)))
+	    if (!drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_GEM_INFO, &mminfo, sizeof(mminfo)))
 	    {
 		info->mm.vram_start = mminfo.vram_start;
 		info->mm.vram_size = mminfo.vram_visible;
@@ -3141,14 +3154,14 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 		       mminfo.gart_size, mminfo.vram_start, mminfo.vram_size, mminfo.vram_visible);
 	    }
 	    {
-		drmRadeonGetParam gp;
+	        struct drm_radeon_getparam gp;
 		int value;
 
 		memset(&gp, 0, sizeof(gp));
 		gp.param = RADEON_PARAM_FB_LOCATION;
 		gp.value = &value;
 
-		if (drmCommandWriteRead(info->drmFD, DRM_RADEON_GETPARAM, &gp,
+		if (drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_GETPARAM, &gp,
 					sizeof(gp)) < 0) {
 		    goto fail;
 		}
@@ -3675,7 +3688,7 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 
     front_ptr = info->FB;
     if (info->drm_mm) {
-	if (info->directRenderingEnabled && info->newMemoryMap) {
+	if (info->directRenderingEnabled && info->dri->newMemoryMap) {
 	    if (RADEONDRISetParam(pScrn, RADEON_SETPARAM_NEW_MEMMAP, 1) < 0) {
 		xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
 			   "[drm] failed to enable new memory map\n");
@@ -3683,14 +3696,14 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 		info->directRenderingEnabled = FALSE;		
 	    }
 	}
-	info->bufmgr = radeon_bufmgr_gem_init(info->drmFD);
+	info->bufmgr = radeon_bufmgr_gem_init(info->dri->drmFD);
 	drmmode_set_bufmgr(pScrn, &info->drmmode, info->bufmgr);
 	//radeon_bufmgr_gem_enable_reuse(info->bufmgr);
 	radeon_setup_kernel_mem(pScreen);
 	front_ptr = info->mm.front_buffer->map;
 	pScrn->fbOffset = info->mm.front_buffer->offset;
-	info->dst_pitch_offset = (((pScrn->displayWidth * info->CurrentLayout.pixel_bytes / 64)
-				   << 22) | ((info->fbLocation + pScrn->fbOffset) >> 10));
+	info->accel_state->dst_pitch_offset = (((pScrn->displayWidth * info->CurrentLayout.pixel_bytes / 64)
+						<< 22) | ((info->fbLocation + pScrn->fbOffset) >> 10));
     } else {
 
 	/* Tell DRI about new memory map */
@@ -3771,8 +3784,10 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
     /* restore the memory map here otherwise we may get a hang when
      * initializing the drm below
      */
-    RADEONInitMemMapRegisters(pScrn, info->ModeReg, info);
-    RADEONRestoreMemMapRegisters(pScrn, info->ModeReg);
+    if (!info->drm_mode_setting) {
+    	RADEONInitMemMapRegisters(pScrn, info->ModeReg, info);
+    	RADEONRestoreMemMapRegisters(pScrn, info->ModeReg);
+    }
 
     /* Backing store setup */
     xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
@@ -3803,7 +3818,7 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
     if (info->directRenderingEnabled) {
 
 	if (info->drm_mm)
-	    radeon_update_dri_buffers(pScrn);
+	    radeon_update_dri_buffers(pScreen);
     
 	/* DRI final init might have changed the memory map, we need to adjust
 	 * our local image to make sure we restore them properly on mode
@@ -5808,11 +5823,11 @@ Bool RADEONEnterVT(int scrnIndex, int flags)
 
     if (info->drm_mm) {
 	radeon_bind_all_memory(pScrn);
-	info->XInited3D = FALSE;
-	info->engineMode = EXA_ENGINEMODE_UNKNOWN;
+	info->accel_state->XInited3D = FALSE;
+	info->accel_state->engineMode = EXA_ENGINEMODE_UNKNOWN;
     }
 
-    radeon_update_dri_buffers(pScrn);
+    radeon_update_dri_buffers(pScrn->pScreen);
 
     pScrn->vtSema = TRUE;
 

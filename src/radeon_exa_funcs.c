@@ -233,7 +233,7 @@ FUNC_NAME(RADEONDoPrepareCopy)(ScrnInfoPtr pScrn, uint32_t src_pitch_offset,
 					  RADEON_DP_SRC_SOURCE_MEMORY |
 					  RADEON_GMC_CLR_CMP_CNTL_DIS);
     info->state_2d.dp_cntl = ((info->accel_state->xdir >= 0 ? RADEON_DST_X_LEFT_TO_RIGHT : 0) |
-			       (info->accel_start->ydir >= 0 ? RADEON_DST_Y_TOP_TO_BOTTOM : 0));
+			       (info->accel_state->ydir >= 0 ? RADEON_DST_Y_TOP_TO_BOTTOM : 0));
     info->state_2d.dp_brush_frgd_clr = 0xffffffff;
     info->state_2d.dp_brush_bkgd_clr = 0x00000000;
     info->state_2d.dp_src_frgd_clr = 0xffffffff;
@@ -658,10 +658,10 @@ Bool FUNC_NAME(RADEONDrawInit)(ScreenPtr pScreen)
 
 #if (EXA_VERSION_MAJOR == 2 && EXA_VERSION_MINOR >= 4)
     if (info->drm_mm) {
-        info->exa->CreatePixmap = RADEONEXACreatePixmap;
-        info->exa->DestroyPixmap = RADEONEXADestroyPixmap;
-        info->exa->PixmapIsOffscreen = RADEONEXAPixmapIsOffscreen;
-        info->exa->ModifyPixmapHeader = RADEONEXAModifyPixmapHeader;
+        info->accel_state->exa->CreatePixmap = RADEONEXACreatePixmap;
+        info->accel_state->exa->DestroyPixmap = RADEONEXADestroyPixmap;
+        info->accel_state->exa->PixmapIsOffscreen = RADEONEXAPixmapIsOffscreen;
+        info->accel_state->exa->ModifyPixmapHeader = RADEONEXAModifyPixmapHeader;
     }
 #endif
 

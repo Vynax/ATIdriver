@@ -28,7 +28,7 @@ radeon_bind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 		pin.handle = mem->kernel_bo_handle;
 		pin.alignment = mem->alignment;
 
-		ret = ioctl(info->drmFD, DRM_IOCTL_RADEON_GEM_PIN, &pin);
+		ret = ioctl(info->dri->drmFD, DRM_IOCTL_RADEON_GEM_PIN, &pin);
 		if (ret != 0) {
 			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 				   "Failed to pin %s: %s\n", mem->name, strerror(errno));
@@ -61,7 +61,7 @@ radeon_unbind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 		struct drm_radeon_gem_unpin unpin;
 
 		unpin.handle = mem->kernel_bo_handle;
-		ret = ioctl(info->drmFD, DRM_IOCTL_RADEON_GEM_UNPIN, &unpin);
+		ret = ioctl(info->dri->drmFD, DRM_IOCTL_RADEON_GEM_UNPIN, &unpin);
 
 		if (ret == 0) {
 			mem->bound = FALSE;
@@ -91,7 +91,7 @@ void radeon_free_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 		struct drm_gem_close close;
 
 		close.handle = mem->kernel_bo_handle;
-		ioctl(info->drmFD, DRM_IOCTL_GEM_CLOSE, &close);
+		ioctl(info->dri->drmFD, DRM_IOCTL_GEM_CLOSE, &close);
 	}
 
 	if (info->mm.bo_list[mem->pool] == mem) {
@@ -139,7 +139,7 @@ struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int si
       args.initial_domain = RADEON_GEM_DOMAIN_GTT;
     args.no_backing_store = no_backing_store;
 
-    ret = drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_CREATE, &args, sizeof(args));
+    ret = drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_GEM_CREATE, &args, sizeof(args));
     if (ret) {
 	ErrorF("Failed to allocate %s\n", mem->name);
 	xfree(mem);
@@ -220,7 +220,7 @@ int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 
     args.handle = mem->kernel_bo_handle;
     args.size = mem->size;
-    ret = drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_MMAP, &args, sizeof(args));
+    ret = drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_GEM_MMAP, &args, sizeof(args));
 
     if (!ret)
 	mem->map = (void *)(unsigned long)args.addr_ptr;
@@ -309,7 +309,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     total_size_bytes += screen_size;
 
     if (info->directRenderingEnabled) {
-	info->backPitch = pScrn->displayWidth;
+	info->dri->backPitch = pScrn->displayWidth;
 	info->mm.back_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, screen_size, 0, 1, "Back Buffer", 1);
 	if (!info->mm.back_buffer) {
 	    return FALSE;
@@ -317,10 +317,10 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 	radeon_bind_memory(pScrn, info->mm.back_buffer);
 	total_size_bytes += screen_size;
 	
-	info->depthPitch = RADEON_ALIGN(pScrn->displayWidth, 32);
+	info->dri->depthPitch = RADEON_ALIGN(pScrn->displayWidth, 32);
 	{
-	    int depthCpp = (info->depthBits - 8) / 4;
-	    int depth_size = RADEON_ALIGN(pScrn->virtualY, 16) * info->depthPitch * depthCpp;
+	    int depthCpp = (info->dri->depthBits - 8) / 4;
+	    int depth_size = RADEON_ALIGN(pScrn->virtualY, 16) * info->dri->depthPitch * depthCpp;
 	    info->mm.depth_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, depth_size, 0, 1, "Depth Buffer", 1);
 	    if (!info->mm.depth_buffer) {
 		return FALSE;
@@ -332,13 +332,13 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     /* work out from the mm size what the exa / tex sizes need to be */
     remain_size_bytes = info->mm.vram_size - total_size_bytes;
 
-    info->textureSize = remain_size_bytes / 2;
+    info->dri->textureSize = remain_size_bytes / 2;
 
-    ErrorF("texture size is %dK, exa is %dK\n", info->textureSize / 1024, (remain_size_bytes - info->textureSize)/1024);
+    ErrorF("texture size is %dK, exa is %dK\n", info->dri->textureSize / 1024, (remain_size_bytes - info->dri->textureSize)/1024);
 
     /* allocate an object for all the EXA bits */
     /* shove EXA + frontbuffer together until we have EXA pixmap hooks */
-    fb_size_bytes = screen_size + (remain_size_bytes - info->textureSize);
+    fb_size_bytes = screen_size + (remain_size_bytes - info->dri->textureSize);
 
     if (info->new_cs)
         fb_size_bytes = screen_size;
@@ -353,9 +353,9 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     if (radeon_map_memory(pScrn, info->mm.front_buffer)) {
 	ErrorF("Failed to map front buffer memory\n");
     }
-    info->frontPitch = pScrn->displayWidth;
+    info->dri->frontPitch = pScrn->displayWidth;
 #if 0
-    info->mm.exa_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, remain_size_bytes - info->textureSize, 0, 1, "EXA Memory Buffer");
+    info->mm.exa_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, remain_size_bytes - info->dri->textureSize, 0, 1, "EXA Memory Buffer");
     if (!info->mm.exa_buffer) {
 	return FALSE;
     }
@@ -366,18 +366,18 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 #endif
 
     if (!info->new_cs) {
-        info->exa->memoryBase = info->mm.front_buffer->map;
-        info->exa->offScreenBase = screen_size;
-        info->exa->memorySize = fb_size_bytes;
+        info->accel_state->exa->memoryBase = info->mm.front_buffer->map;
+        info->accel_state->exa->offScreenBase = screen_size;
+        info->accel_state->exa->memorySize = fb_size_bytes;
         xf86DrvMsg(pScrn->scrnIndex, X_INFO,
 		   "Will use %ld kb for X Server offscreen at offset 0x%08lx\n",
-		   (info->exa->memorySize - info->exa->offScreenBase) /
-		   1024, info->exa->offScreenBase);
+		   (info->accel_state->exa->memorySize - info->accel_state->exa->offScreenBase) /
+		   1024, info->accel_state->exa->offScreenBase);
     }
 
     if (info->directRenderingEnabled) {
-	info->textureSize /= 2;
-	info->mm.texture_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, info->textureSize, 0, 1, "Texture Buffer", 1);
+	info->dri->textureSize /= 2;
+	info->mm.texture_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, info->dri->textureSize, 0, 1, "Texture Buffer", 1);
 	if (!info->mm.texture_buffer) {
 	    return FALSE;
 	}
@@ -398,7 +398,7 @@ Bool radeon_setup_gart_mem(ScreenPtr pScreen)
 
     info->mm.gart_texture_buffer =
 	radeon_allocate_memory(pScrn, RADEON_POOL_GART,
-			       info->gartTexMapSize,
+			       info->dri->gartTexMapSize,
 			       0, 1, "GART texture buffers", 1);
     
     if (!info->mm.gart_texture_buffer) {

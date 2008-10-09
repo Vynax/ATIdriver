@@ -1231,7 +1231,7 @@ Bool radeon_bind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
 Bool radeon_free_all_memory(ScrnInfoPtr pScrn);
 Bool radeon_setup_kernel_mem(ScreenPtr pScreen);
 Bool RADEONDRIDoMappings(ScreenPtr pScreen);
-Bool radeon_update_dri_buffers(ScrnInfoPtr pScrn);
+Bool radeon_update_dri_buffers(ScreenPtr pScreen);
 Bool radeon_setup_gart_mem(ScreenPtr pScreen);
 
 #ifdef XF86DRI

@@ -623,13 +623,13 @@ drmBufPtr RADEONCSGetBuffer(ScrnInfoPtr pScrn)
 {
     RADEONInfoPtr  info = RADEONPTR(pScrn);
 
-    info->ib_gem_fake.address = xcalloc(1, RADEON_BUFFER_SIZE);
-    if (!info->ib_gem_fake.address)
+    info->cp->ib_gem_fake.address = xcalloc(1, RADEON_BUFFER_SIZE);
+    if (!info->cp->ib_gem_fake.address)
         return NULL;
 
-    info->ib_gem_fake.used = 0;
-    info->ib_gem_fake.total = RADEON_BUFFER_SIZE - (16*4); // reserve 16 dwords
-    return &info->ib_gem_fake;
+    info->cp->ib_gem_fake.used = 0;
+    info->cp->ib_gem_fake.total = RADEON_BUFFER_SIZE - (16*4); // reserve 16 dwords
+    return &info->cp->ib_gem_fake;
 }
 
 void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
@@ -640,7 +640,7 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     RING_LOCALS;
 
     /* always add the cache flushes to the end of the IB */
-    info->indirectBuffer->total += 16 * 4;
+    info->cp->indirectBuffer->total += 16 * 4;
     
     /* end of IB purge caches */
     if (info->cs_used_depth) {
@@ -651,10 +651,10 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     RADEON_PURGE_CACHE();
     RADEON_WAIT_UNTIL_IDLE();
 
-    args.packets = (unsigned long)info->ib_gem_fake.address;
-    args.dwords = info->indirectBuffer->used / sizeof(uint32_t);
+    args.packets = (unsigned long)info->cp->ib_gem_fake.address;
+    args.dwords = info->cp->indirectBuffer->used / sizeof(uint32_t);
 
-    ret = drmCommandWriteRead(info->drmFD, DRM_RADEON_CS,
+    ret = drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_CS,
 			      &args, sizeof(args));
 
     if (ret) {
@@ -663,13 +663,13 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     }
 
 
-    info->indirectStart = 0;
-    info->indirectBuffer->used = 0;
-    info->indirectBuffer->total -= 16*4;
+    info->cp->indirectStart = 0;
+    info->cp->indirectBuffer->used = 0;
+    info->cp->indirectBuffer->total -= 16*4;
 
     if (info->bufmgr)
       radeon_gem_bufmgr_post_submit(info->bufmgr);
-
+    
     /* copy some state into the buffer now - we need to add 2D state to each
        buffer as the kernel needs to use the blit engine to move stuff around */
     if (info->reemit_current2d)
@@ -680,88 +680,12 @@ void RADEONCSReleaseIndirect(ScrnInfoPtr pScrn)
 {
     RADEONInfoPtr  info = RADEONPTR(pScrn);
 
-    if (!info->indirectBuffer) return;
+    if (!info->cp->indirectBuffer) return;
     RADEONCSFlushIndirect(pScrn, 0);
-    xfree(info->ib_gem_fake.address);
-    info->ib_gem_fake.address = NULL;
-    info->indirectBuffer = NULL;
+    xfree(info->cp->ib_gem_fake.address);
+    info->cp->ib_gem_fake.address = NULL;
+    info->cp->indirectBuffer = NULL;
 
-}
-
-drmBufPtr RADEONGEMGetBuffer(ScrnInfoPtr pScrn)
-{
-    RADEONInfoPtr  info = RADEONPTR(pScrn);
-    int ret;
-
-    info->mm.gem_ib_memory = radeon_allocate_memory(pScrn, RADEON_POOL_GART, RADEON_BUFFER_SIZE,
-						    0, 0, "Accel IB", 0);
-
-    if (!info->mm.gem_ib_memory) {
-	ErrorF("Unable to map allocate IB\n");
-	return NULL;
-    }
-
-    radeon_bind_memory(pScrn, info->mm.gem_ib_memory);
-    ret = radeon_map_memory(pScrn, info->mm.gem_ib_memory);
-    if (ret) {
-	ErrorF("Unable to map IB\n");
-	radeon_free_memory(pScrn, info->mm.gem_ib_memory);
-	return NULL;
-    }
-
-
-    info->cp->ib_gem_fake.address = info->mm.gem_ib_memory->map;
-    info->cp->ib_gem_fake.used = 0;
-    info->cp->ib_gem_fake.total = RADEON_BUFFER_SIZE;
-    
-    return &info->cp->ib_gem_fake;
-}
-
-void RADEONGEMFlushIndirect(ScrnInfoPtr pScrn, int discard)
-{
-    RADEONInfoPtr  info = RADEONPTR(pScrn);
-    struct drm_radeon_gem_indirect args;
-    struct drm_radeon_gem_set_domain dom_args;
-
-    if (RADEON_VERBOSE) {
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Flushing IB\n");
-    }
-
-    args.handle = info->mm.gem_ib_memory->kernel_bo_handle;
-    args.used = info->indirectBuffer->used;
-
-
-    drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_INDIRECT,
-			&args, sizeof(args));
-
-    /* for now just wait for the buffer to come around again */
-
-    dom_args.handle = info->mm.gem_ib_memory->kernel_bo_handle;
-    dom_args.read_domains = RADEON_GEM_DOMAIN_GTT;
-    dom_args.write_domain = 0;
-
-    drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_SET_DOMAIN,
-			&dom_args, sizeof(dom_args));
-
-    info->indirectStart = 0;
-    info->indirectBuffer->used = 0;
-}
-
-void RADEONGEMReleaseIndirect(ScrnInfoPtr pScrn)
-{
-    RADEONInfoPtr  info = RADEONPTR(pScrn);
-
-    if (RADEON_VERBOSE) {
-	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Releasing IB\n");
-    }
-
-    if (!info->indirectBuffer) return;
-
-    RADEONGEMFlushIndirect(pScrn, 0);
-
-    radeon_free_memory(pScrn, info->mm.gem_ib_memory);
-    info->mm.gem_ib_memory = NULL;
-    info->indirectBuffer = NULL;
 }
 
 /* Get an indirect buffer for the CP 2D acceleration commands  */
@@ -1241,6 +1165,7 @@ void RADEONInit3DEngine(ScrnInfoPtr pScrn)
 
 	    pSAREAPriv = DRIGetSAREAPrivate(pScrn->pScreen);
 	    pSAREAPriv->ctx_owner = DRIGetContext(pScrn->pScreen);
+	}
 	RADEONInit3DEngineCP(pScrn);
     } else
 #endif
@@ -1248,7 +1173,7 @@ void RADEONInit3DEngine(ScrnInfoPtr pScrn)
 
     info->accel_state->XInited3D = TRUE;
 }
-
+    
 #ifdef USE_XAA
 #ifdef XF86DRI
 Bool

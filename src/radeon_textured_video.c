@@ -40,6 +40,7 @@
 #include "radeon_macros.h"
 #include "radeon_probe.h"
 #include "radeon_video.h"
+#include "radeon_drm.h"
 
 #include <X11/extensions/Xv.h>
 #include "fourcc.h"

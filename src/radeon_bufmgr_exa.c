@@ -53,6 +53,7 @@
 #include "radeon_probe.h"
 #include "radeon.h"
 #include "radeon_bufmgr.h"
+#include "radeon_drm.h"
 
 
 typedef struct _dri_bo_exa {
@@ -74,7 +75,7 @@ typedef struct _dri_bufmgr_exa {
 
 static dri_bo *
 dri_exa_alloc(dri_bufmgr *bufmgr, const char *name,
-	      unsigned long size, unsigned int alignment)
+	      unsigned long size, unsigned int alignment, uint64_t location_mask)
 
 {
 	dri_bufmgr_exa *bufmgr_exa = (dri_bufmgr_exa *)bufmgr;
@@ -164,7 +165,7 @@ void radeon_bufmgr_exa_wait_rendering(dri_bo *buf)
 	dom_args.handle = exa_buf->mem->kernel_bo_handle;
 	dom_args.read_domains = RADEON_GEM_DOMAIN_GTT;
 	dom_args.write_domain = 0;
-	ret = drmCommandWriteRead(info->drmFD, DRM_RADEON_GEM_SET_DOMAIN,
+	ret = drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_GEM_SET_DOMAIN,
 				  &dom_args, sizeof(dom_args));
 
 	return;
@@ -186,7 +187,7 @@ int radeon_bufmgr_subdata(dri_bo *buf, unsigned long offset,
 	pwrite.data_ptr = (uint64_t)(uintptr_t)data;
 
 	do {
-		ret = drmCommandWriteRead(info->drmFD, DRM_IOCTL_RADEON_GEM_PWRITE,
+		ret = drmCommandWriteRead(info->dri->drmFD, DRM_IOCTL_RADEON_GEM_PWRITE,
 					  &pwrite, sizeof(pwrite));
 	} while (ret == -1 && errno == EINTR);
 

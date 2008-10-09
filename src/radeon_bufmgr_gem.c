@@ -55,6 +55,7 @@
 #include "radeon_probe.h"
 #include "radeon.h"
 #include "radeon_bufmgr.h"
+#include "radeon_drm.h"
 
 #define DBG(...) do {					\
    if (bufmgr_gem->bufmgr.debug)			\
@@ -138,7 +139,7 @@ dri_gem_bo_bucket_for_size(dri_bufmgr_gem *bufmgr_gem, unsigned long size)
 
 static dri_bo *
 dri_gem_bo_alloc(dri_bufmgr *bufmgr, const char *name,
-		 unsigned long size, unsigned int alignment)
+		 unsigned long size, unsigned int alignment, uint64_t location_mask)
 
 {
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bufmgr;

@@ -239,7 +239,6 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	OUT_ACCEL_REG(R300_TX_FORMAT0_0, txformat0);
 	OUT_ACCEL_REG(R300_TX_FORMAT1_0, txformat1);
 	OUT_ACCEL_REG(R300_TX_FORMAT2_0, txpitch);
-	OUT_ACCEL_REG(R300_TX_OFFSET_0, txoffset);
 	if (info->new_cs) {
 	    OUT_ACCEL_REG(R300_TX_OFFSET_0, 0);
 	    OUT_RELOC(pPriv->src_bo, RADEON_GEM_DOMAIN_VRAM | RADEON_GEM_DOMAIN_GTT, 0);
