@@ -656,7 +656,7 @@ Bool FUNC_NAME(RADEONDrawInit)(ScreenPtr pScreen)
     }
 #endif
 
-#if EXA_VERSION_MINOR >= 4
+#if (EXA_VERSION_MAJOR == 2 && EXA_VERSION_MINOR >= 4)
     if (info->drm_mm) {
         info->exa->CreatePixmap = RADEONEXACreatePixmap;
         info->exa->DestroyPixmap = RADEONEXADestroyPixmap;

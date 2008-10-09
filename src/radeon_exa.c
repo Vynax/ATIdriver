@@ -192,7 +192,6 @@ Bool RADEONGetPixmapOffsetPitch(PixmapPtr pPix, uint32_t *pitch_offset)
 	if (bpp == 24)
 		bpp = 8;
 
-	driver_priv = exaGetPixmapDriverPrivate(pPix);
 
 	/* validate the pixmap somewhere */
 	if (info->new_cs)
@@ -360,8 +359,9 @@ static void RADEONFinishAccess(PixmapPtr pPix, int index)
 
     if (driver_priv) {
 	dri_bo_unmap(driver_priv->bo);
-    }
     pPix->devPrivate.ptr = NULL;
+    }
+
 
 #if X_BYTE_ORDER == X_BIG_ENDIAN
     /* Front buffer is always set with proper swappers */

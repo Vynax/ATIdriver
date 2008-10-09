@@ -1158,9 +1158,10 @@ static Bool FUNC_NAME(R300TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
     OUT_ACCEL_REG(R300_TX_FORMAT1_0 + (unit * 4), txformat1);
     OUT_ACCEL_REG(R300_TX_FORMAT2_0 + (unit * 4), txpitch);
 
-    driver_priv = exaGetPixmapDriverPrivate(pPix);
     if (info->new_cs) {
         uint32_t handle = 0;
+	driver_priv = exaGetPixmapDriverPrivate(pPix);
+
         OUT_ACCEL_REG(R300_TX_OFFSET_0 + (unit * 4), driver_priv ? 0 : txoffset);
 	OUT_RELOC(driver_priv->bo, RADEON_GEM_DOMAIN_VRAM | RADEON_GEM_DOMAIN_GTT, 0);
     } else {
