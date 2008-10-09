@@ -102,17 +102,8 @@ static void FUNC_NAME(Emit2DState)(ScrnInfoPtr pScrn, int op)
 
     qwords = info->new_cs ? 11 : 9;
     qwords += (has_src ? (info->new_cs ?  3 : 1) : 0);
-    qwords += (info->ChipFamily <= CHIP_FAMILY_RV280 ? 3 : 2);
 
     BEGIN_ACCEL(qwords);
-    if (info->ChipFamily <= CHIP_FAMILY_RV280) {
-	OUT_ACCEL_REG(RADEON_RE_TOP_LEFT,     0);
-	OUT_ACCEL_REG(RADEON_RE_WIDTH_HEIGHT, 0x7ff07ff);
-	OUT_ACCEL_REG(RADEON_AUX_SC_CNTL,     0);
-    } else {
-	OUT_ACCEL_REG(R300_SC_SCISSOR0, 0);
-	OUT_ACCEL_REG(R300_SC_SCISSOR1, 0x7ff07ff);
-    }
     OUT_ACCEL_REG(RADEON_DEFAULT_SC_BOTTOM_RIGHT, info->state_2d.default_sc_bottom_right);
     OUT_ACCEL_REG(RADEON_DP_GUI_MASTER_CNTL, info->state_2d.dp_gui_master_cntl);
     OUT_ACCEL_REG(RADEON_DP_BRUSH_FRGD_CLR, info->state_2d.dp_brush_frgd_clr);
