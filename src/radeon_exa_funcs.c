@@ -392,7 +392,7 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
     if (!info->directRenderingEnabled && !info->drm_mode_setting)
         goto fallback;
 
-    if (RADEONGetPixmapOffsetPitch(pDst, &dst_pitch_off))
+    if (!RADEONGetPixmapOffsetPitch(pDst, &dst_pitch_off))
         goto fallback;
 
     if (!info->new_cs)
