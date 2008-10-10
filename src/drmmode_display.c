@@ -573,8 +573,25 @@ drmmode_output_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int num)
 		return;
 	}
 
-	snprintf(name, 32, "%s%d", output_names[koutput->connector_type], koutput->connector_type_id);
-
+	/* need to do smart conversion here for compat with non-kms ATI driver */
+	if (koutput->connector_type_id == 1) {
+	    switch(koutput->connector_type) {
+	    case DRM_MODE_CONNECTOR_VGA:
+	    case DRM_MODE_CONNECTOR_DVII:
+	    case DRM_MODE_CONNECTOR_DVID:
+	    case DRM_MODE_CONNECTOR_DVIA:
+	    case DRM_MODE_CONNECTOR_HDMIA:
+	    case DRM_MODE_CONNECTOR_HDMIB:
+		snprintf(name, 32, "%s-%d", output_names[koutput->connector_type], koutput->connector_type_id - 1);
+		break;
+	    default:
+		snprintf(name, 32, "%s", output_names[koutput->connector_type]);
+		break;
+	    }
+	} else {
+	    snprintf(name, 32, "%s-%d", output_names[koutput->connector_type], koutput->connector_type_id - 1);
+	}
+		
 	output = xf86OutputCreate (pScrn, &drmmode_output_funcs, name);
 	if (!output) {
 		drmModeFreeEncoder(kencoder);
