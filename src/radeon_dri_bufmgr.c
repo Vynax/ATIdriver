@@ -157,3 +157,18 @@ dri_bufmgr_check_aperture_space(dri_bo *bo)
 {
     return bo->bufmgr->check_aperture_space(bo);
 }
+
+int dri_bo_pin(dri_bo *bo, int domain)
+{
+    return bo->bufmgr->pin(bo, domain);
+}
+
+void dri_bo_unpin(dri_bo *bo)
+{
+    bo->bufmgr->unpin(bo);
+}
+
+uint32_t dri_bo_get_handle(dri_bo *bo)
+{
+    return bo->bufmgr->get_handle(bo);
+}

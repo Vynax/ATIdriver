@@ -177,6 +177,11 @@ struct _dri_bufmgr {
    void (*post_submit)(dri_bo *batch_buf, dri_fence **fence);
 
    int (*check_aperture_space)(dri_bo *bo);
+
+   int (*pin)(dri_bo *bo, int domain);
+   void (*unpin)(dri_bo *bo);
+
+   uint32_t (*get_handle)(dri_bo *bo);
    int debug; /**< Enables verbose debugging printouts */
 };
 
@@ -218,6 +223,11 @@ void *dri_process_relocs(dri_bo *batch_buf, uint32_t *count);
 void dri_post_process_relocs(dri_bo *batch_buf);
 void dri_post_submit(dri_bo *batch_buf, dri_fence **last_fence);
 int dri_bufmgr_check_aperture_space(dri_bo *bo);
+
+int dri_bo_pin(dri_bo *bo, int domain);
+void dri_bo_unpin(dri_bo *bo);
+
+uint32_t dri_bo_get_handle(dri_bo *bo);
 
 #ifndef TTM_API
 /* reuse some TTM API */

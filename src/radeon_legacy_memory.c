@@ -109,7 +109,7 @@ radeon_legacy_free_memory(ScrnInfoPtr pScrn,
     RADEONInfoPtr info = RADEONPTR(pScrn);
 
     if (info->new_cs) {
-	struct dri_bo *bo = mem_struct;
+        dri_bo *bo = mem_struct;
 	dri_bo_unreference(bo);
 	return;
     }

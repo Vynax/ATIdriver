@@ -25,8 +25,5 @@ dri_bufmgr *radeon_bufmgr_exa_init(ScrnInfoPtr pScrn);
 extern void radeon_bufmgr_exa_wait_rendering(dri_bo *bo);
 extern dri_bo *radeon_bufmgr_exa_create_bo(dri_bufmgr *bufmgr, struct radeon_memory *mem);
 void radeon_bufmgr_post_submit(dri_bufmgr *bufmgr);
-void radeon_bufmgr_pin(dri_bo *buf);
-void radeon_bufmgr_unpin(dri_bo *buf);
-uint32_t radeon_bufmgr_get_handle(dri_bo *buf);
 void radeon_bufmgr_gem_enable_reuse(dri_bufmgr *bufmgr);
 #endif

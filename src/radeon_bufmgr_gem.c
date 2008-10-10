@@ -460,6 +460,43 @@ radeon_bufmgr_gem_enable_reuse(dri_bufmgr *bufmgr)
     }
 }
 
+static int radeon_gem_bufmgr_pin(dri_bo *bo, int domain)
+{
+	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bo->bufmgr;
+	dri_bo_gem *gem_bo = (dri_bo_gem *)bo;
+	struct drm_radeon_gem_pin pin;
+	int ret;
+
+	pin.pin_domain = domain;
+	pin.handle = gem_bo->gem_handle;
+	pin.alignment = 0;
+
+	ret = ioctl(bufmgr_gem->fd, DRM_IOCTL_RADEON_GEM_PIN, &pin);
+	if (ret != 0)
+		return -1;
+	
+	return 0;
+}
+
+static void radeon_gem_bufmgr_unpin(dri_bo *bo)
+{
+
+	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bo->bufmgr;
+	dri_bo_gem *gem_bo = (dri_bo_gem *)bo;
+	struct drm_radeon_gem_unpin unpin;
+
+	unpin.handle = gem_bo->gem_handle;
+	ioctl(bufmgr_gem->fd, DRM_IOCTL_RADEON_GEM_UNPIN, &unpin);
+}
+
+
+static uint32_t radeon_gem_bufmgr_get_handle(dri_bo *buf)
+{
+	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
+	
+	return gem_bo->gem_handle;
+}
+
 /**
  * Initializes the GEM buffer manager, which is just a thin wrapper
  * around the GEM allocator.
@@ -484,8 +521,11 @@ radeon_bufmgr_gem_init(int fd)
 	bufmgr_gem->bufmgr.bo_map = dri_gem_bo_map;
 	bufmgr_gem->bufmgr.bo_unmap = dri_gem_bo_unmap;
 	bufmgr_gem->bufmgr.destroy = dri_bufmgr_gem_destroy;
+	bufmgr_gem->bufmgr.pin = radeon_gem_bufmgr_pin;
+	bufmgr_gem->bufmgr.unpin = radeon_gem_bufmgr_unpin;
 	//bufmgr_gem->bufmgr.bo_wait_rendering = radeon_bufmgr_gem_wait_rendering;
 	bufmgr_gem->radeon_bufmgr.emit_reloc = radeon_bufmgr_gem_emit_reloc;
+	bufmgr_gem->bufmgr.get_handle = radeon_gem_bufmgr_get_handle;
 	/* Initialize the linked lists for BO reuse cache. */
 	for (i = 0; i < RADEON_GEM_BO_BUCKETS; i++)
 		bufmgr_gem->cache_bucket[i].tail = &bufmgr_gem->cache_bucket[i].head;
@@ -515,20 +555,7 @@ void radeon_gem_bufmgr_post_submit(dri_bufmgr *bufmgr)
 
 }
 
-void radeon_gem_bufmgr_pin(dri_bo *buf)
-{
-}
 
-void radeon_gem_bufmgr_unpin(dri_bo *buf)
-{
-}
-
-uint32_t radeon_gem_bufmgr_get_handle(dri_bo *buf)
-{
-	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
-	
-	return gem_bo->gem_handle;
-}
 
 void radeon_bufmgr_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p, uint32_t read_domains, uint32_t write_domain)
 {

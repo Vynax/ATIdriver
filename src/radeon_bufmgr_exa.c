@@ -251,6 +251,30 @@ static void radeon_bufmgr_exa_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *
 	*count_p = __count;
 }
 
+static int radeon_bufmgr_exa_pin(dri_bo *buf)
+{
+	dri_bufmgr_exa *bufmgr_exa = (dri_bufmgr_exa *)buf->bufmgr;
+	dri_bo_exa *exa_buf = (dri_bo_exa *)buf;
+
+	return !radeon_bind_memory(bufmgr_exa->pScrn, exa_buf->mem);
+}
+
+static void radeon_bufmgr_exa_unpin(dri_bo *buf)
+{
+	dri_bufmgr_exa *bufmgr_exa = (dri_bufmgr_exa *)buf->bufmgr;
+	dri_bo_exa *exa_buf = (dri_bo_exa *)buf;
+
+	radeon_unbind_memory(bufmgr_exa->pScrn, exa_buf->mem);
+}
+
+static uint32_t radeon_bufmgr_get_handle(dri_bo *buf)
+{
+	dri_bo_exa *exa_buf = (dri_bo_exa *)buf;
+	
+	return exa_buf->mem->kernel_bo_handle;
+}
+
+
 /**
  * Initializes the EXA buffer manager, which is just a thin wrapper
  * around the EXA allocator.
@@ -276,6 +300,9 @@ radeon_bufmgr_exa_init(ScrnInfoPtr pScrn)
 	bufmgr_exa->bufmgr.destroy = dri_bufmgr_exa_destroy;
 	//bufmgr_exa->bufmgr.bo_wait_rendering = radeon_bufmgr_exa_wait_rendering;
 	bufmgr_exa->radeon_bufmgr.emit_reloc = radeon_bufmgr_exa_emit_reloc;
+	bufmgr_exa->bufmgr.pin = radeon_bufmgr_exa_pin;
+	bufmgr_exa->bufmgr.unpin = radeon_bufmgr_exa_unpin;
+	bufmgr_exa->bufmgr.get_handle = radeon_bufmgr_get_handle;
 	return &bufmgr_exa->bufmgr;
 }
 
@@ -298,27 +325,4 @@ void radeon_bufmgr_post_submit(dri_bufmgr *bufmgr)
 	}
 	bufmgr_exa->reloc_head = NULL;
 
-}
-
-void radeon_bufmgr_pin(dri_bo *buf)
-{
-	dri_bufmgr_exa *bufmgr_exa = (dri_bufmgr_exa *)buf->bufmgr;
-	dri_bo_exa *exa_buf = (dri_bo_exa *)buf;
-
-	radeon_bind_memory(bufmgr_exa->pScrn, exa_buf->mem);
-}
-
-void radeon_bufmgr_unpin(dri_bo *buf)
-{
-	dri_bufmgr_exa *bufmgr_exa = (dri_bufmgr_exa *)buf->bufmgr;
-	dri_bo_exa *exa_buf = (dri_bo_exa *)buf;
-
-	radeon_unbind_memory(bufmgr_exa->pScrn, exa_buf->mem);
-}
-
-uint32_t radeon_bufmgr_get_handle(dri_bo *buf)
-{
-	dri_bo_exa *exa_buf = (dri_bo_exa *)buf;
-	
-	return exa_buf->mem->kernel_bo_handle;
 }

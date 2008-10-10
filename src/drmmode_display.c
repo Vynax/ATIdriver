@@ -32,7 +32,9 @@
 #ifdef XF86DRM_MODE
 #include "radeon.h"
 #include "radeon_reg.h"
+#include "radeon_drm.h"
 #include "sarea.h"
+
 
 static Bool drmmode_resize_fb(ScrnInfoPtr scrn, drmmode_ptr drmmode, int width, int height);
 
@@ -324,11 +326,11 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 	if (rotate_bo == NULL)
 		return NULL;
 
-	radeon_bufmgr_pin(rotate_bo);
+	dri_bo_pin(rotate_bo, RADEON_GEM_DOMAIN_VRAM);
 	dri_bo_map(rotate_bo, 1);
 
 	ret = drmModeAddFB(drmmode->fd, width, height, crtc->scrn->depth,
-			   crtc->scrn->bitsPerPixel, rotate_pitch, radeon_bufmgr_get_handle(rotate_bo),
+			   crtc->scrn->bitsPerPixel, rotate_pitch, dri_bo_get_handle(rotate_bo),
 			   &drmmode_crtc->rotate_fb_id);
 	if (ret) {
 		ErrorF("failed to add rotate fb\n");
