@@ -75,67 +75,12 @@ typedef struct _dri_bo_gem {
 	int in_vram; /* have we migrated this bo to VRAM ever */
 } dri_bo_gem;
 
-struct dri_gem_bo_bucket {
-   dri_bo_gem *head, **tail;
-   /**
-    * Limit on the number of entries in this bucket.
-    *
-    * 0 means that this caching at this bucket size is disabled.
-    * -1 means that there is no limit to caching at this size.
-    */
-   int max_entries;
-   int num_entries;
-};
-
-/* Arbitrarily chosen, 16 means that the maximum size we'll cache for reuse
- * is 1 << 16 pages, or 256MB.
- */
-#define RADEON_GEM_BO_BUCKETS	16
-
 typedef struct _dri_bufmgr_gem {
 	dri_bufmgr bufmgr;
 	struct radeon_bufmgr radeon_bufmgr;
 	int fd;
 	struct _dri_bo_gem *reloc_head;
-	
-	/** Array of lists of cached gem objects of power-of-two sizes */
-	struct dri_gem_bo_bucket cache_bucket[RADEON_GEM_BO_BUCKETS];
 } dri_bufmgr_gem;
-
-static int
-logbase2(int n)
-{
-   int i = 1;
-   int log2 = 0;
-
-   while (n > i) {
-      i *= 2;
-      log2++;
-   }
-
-   return log2;
-}
-
-static struct dri_gem_bo_bucket *
-dri_gem_bo_bucket_for_size(dri_bufmgr_gem *bufmgr_gem, unsigned long size)
-{
-    int i;
-
-    /* We only do buckets in power of two increments */
-    if ((size & (size - 1)) != 0)
-	return NULL;
-
-    /* We should only see sizes rounded to pages. */
-    assert((size % 4096) == 0);
-
-    /* We always allocate in units of pages */
-    i = ffs(size / 4096) - 1;
-    if (i >= RADEON_GEM_BO_BUCKETS)
-	return NULL;
-
-    return &bufmgr_gem->cache_bucket[i];
-}
-
 
 static dri_bo *
 dri_gem_bo_alloc(dri_bufmgr *bufmgr, const char *name,
@@ -147,64 +92,24 @@ dri_gem_bo_alloc(dri_bufmgr *bufmgr, const char *name,
 	int ret;
 	unsigned int page_size = getpagesize();
 	dri_bo_gem *gem_bo;
-	struct dri_gem_bo_bucket *bucket;
-	int alloc_from_cache = 0;
-	unsigned long bo_size;
 
-	/* Round the allocated size up to a power of two number of pages. */
-	bo_size = 1 << logbase2(size);
-	if (bo_size < page_size)
-		bo_size = page_size;
-	bucket = dri_gem_bo_bucket_for_size(bufmgr_gem, bo_size);
-    
-	/* If we don't have caching at this size, don't actually round the
-	 * allocation up.
-	 */
-	if (bucket == NULL || bucket->max_entries == 0) {
-		bo_size = size;
-		if (bo_size < page_size)
-			bo_size = page_size;
+	gem_bo = calloc(1, sizeof(*gem_bo));
+	if (!gem_bo)
+		return NULL;
+
+	gem_bo->bo.size = size;
+	args.size = size;
+	args.alignment = alignment;
+	args.initial_domain = RADEON_GEM_DOMAIN_CPU;
+	args.no_backing_store = 0;
+
+	ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_CREATE, &args, sizeof(args));
+	gem_bo->gem_handle = args.handle;
+	if (ret != 0) {
+		free(gem_bo);
+		return NULL;
 	}
-
-	/* Get a buffer out of the cache if available */
-	if (bucket != NULL && bucket->num_entries > 0) {
-		struct drm_radeon_gem_set_domain args;
-
-		gem_bo = bucket->head;
-		args.handle = gem_bo->gem_handle;
-		args.read_domains = RADEON_GEM_DOMAIN_GTT | RADEON_GEM_DOMAIN_VRAM;
-		args.write_domain = 0;
-		ret = ioctl(bufmgr_gem->fd, DRM_IOCTL_RADEON_GEM_SET_DOMAIN, &args);
-		alloc_from_cache = (ret == 0);
-
-		if (alloc_from_cache) {
-			bucket->head = gem_bo->next;
-			if (gem_bo->next == NULL)
-				bucket->tail = &bucket->head;
-			bucket->num_entries--;
-		}
-	}
-
-	if (!alloc_from_cache) {
-
-		gem_bo = calloc(1, sizeof(*gem_bo));
-		if (!gem_bo)
-			return NULL;
-
-		gem_bo->bo.size = bo_size;
-		args.size = bo_size;
-		args.alignment = alignment;
-		args.initial_domain = RADEON_GEM_DOMAIN_CPU;
-		args.no_backing_store = 0;
-
-		ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_CREATE, &args, sizeof(args));
-		gem_bo->gem_handle = args.handle;
-		if (ret != 0) {
-			free(gem_bo);
-			return NULL;
-		}
-		gem_bo->bo.bufmgr = bufmgr;
-	}
+	gem_bo->bo.bufmgr = bufmgr;
 
 	gem_bo->refcount = 1;
 	gem_bo->reloc_count = 0;
@@ -212,8 +117,8 @@ dri_gem_bo_alloc(dri_bufmgr *bufmgr, const char *name,
 	gem_bo->in_vram = 0;
 	gem_bo->name = name;
 
-	DBG("bo_create: buf %d (%s) %ldb: %d\n",
-	    gem_bo->gem_handle, gem_bo->name, size, alloc_from_cache);
+	DBG("bo_create: buf %d (%s) %ldb\n",
+	    gem_bo->gem_handle, gem_bo->name, size);
 
 	return &gem_bo->bo;
 }
@@ -250,31 +155,9 @@ dri_gem_bo_unreference(dri_bo *bo)
 		return;
 	
 	if (--gem_bo->refcount == 0) {
-		struct dri_gem_bo_bucket *bucket;
-		
-
-		bucket = dri_gem_bo_bucket_for_size(bufmgr_gem, bo->size);
-		/* Put the buffer into our internal cache for reuse if we can. */
-		if ((gem_bo->in_vram == 0) && (bucket != NULL &&
-		    (bucket->max_entries == -1 ||
-		     (bucket->max_entries > 0 &&
-		      bucket->num_entries < bucket->max_entries))))
-		{
-			DBG("bo_unreference final: %d (%s) 1\n",
-			    gem_bo->gem_handle, gem_bo->name);
-		
-			gem_bo->name = 0;
-			
-			gem_bo->next = NULL;
-			*bucket->tail = gem_bo;
-			bucket->tail = &gem_bo->next;
-			bucket->num_entries++;
-		} else {
-			DBG("bo_unreference final: %d (%s) 0 - free %d\n",
-			    gem_bo->gem_handle, gem_bo->name, gem_bo->in_vram);
-			dri_gem_bo_free(bo);
-		}
-		
+		DBG("bo_unreference final: %d (%s) 0 - free %d\n",
+		    gem_bo->gem_handle, gem_bo->name, gem_bo->in_vram);
+		dri_gem_bo_free(bo);
 		return;
 	}
 }
@@ -321,20 +204,6 @@ dri_bufmgr_gem_destroy(dri_bufmgr *bufmgr)
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bufmgr;
 	int i;
 
-	/* Free any cached buffer objects we were going to reuse */
-	for (i = 0; i < RADEON_GEM_BO_BUCKETS; i++) {
-		struct dri_gem_bo_bucket *bucket = &bufmgr_gem->cache_bucket[i];
-		dri_bo_gem *bo_gem;
-
-		while ((bo_gem = bucket->head) != NULL) {
-			bucket->head = bo_gem->next;
-			if (bo_gem->next == NULL)
-				bucket->tail = &bucket->head;
-			bucket->num_entries--;
-			
-			dri_gem_bo_free(&bo_gem->bo);
-		}
-	}
 	free(bufmgr);
 }
 
@@ -442,24 +311,6 @@ void radeon_bufmgr_gem_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p
 	*count_p = __count;
 }
 
-/**
- * Enables unlimited caching of buffer objects for reuse.
- *
- * This is potentially very memory expensive, as the cache at each bucket
- * size is only bounded by how many buffers of that size we've managed to have
- * in flight at once.
- */
-void
-radeon_bufmgr_gem_enable_reuse(dri_bufmgr *bufmgr)
-{
-    dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bufmgr;
-    int i;
-
-    for (i = 0; i < RADEON_GEM_BO_BUCKETS; i++) {
-	bufmgr_gem->cache_bucket[i].max_entries = -1;
-    }
-}
-
 static int radeon_gem_bufmgr_pin(dri_bo *bo, int domain)
 {
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bo->bufmgr;
@@ -526,9 +377,6 @@ radeon_bufmgr_gem_init(int fd)
 	//bufmgr_gem->bufmgr.bo_wait_rendering = radeon_bufmgr_gem_wait_rendering;
 	bufmgr_gem->radeon_bufmgr.emit_reloc = radeon_bufmgr_gem_emit_reloc;
 	bufmgr_gem->bufmgr.get_handle = radeon_gem_bufmgr_get_handle;
-	/* Initialize the linked lists for BO reuse cache. */
-	for (i = 0; i < RADEON_GEM_BO_BUCKETS; i++)
-		bufmgr_gem->cache_bucket[i].tail = &bufmgr_gem->cache_bucket[i].head;
 	bufmgr_gem->bufmgr.debug = 0;
 	return &bufmgr_gem->bufmgr;
 }
