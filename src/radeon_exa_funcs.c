@@ -258,8 +258,6 @@ FUNC_NAME(RADEONPrepareCopy)(PixmapPtr pSrc,   PixmapPtr pDst,
     struct radeon_exa_pixmap_priv *driver_priv;
     TRACE;
 
-    RADEON_FALLBACK("ASS");
-
     info->accel_state->xdir = xdir;
     info->accel_state->ydir = ydir;
 
