@@ -5496,7 +5496,7 @@ Bool RADEONSwitchMode(int scrnIndex, DisplayModePtr mode, int flags)
 #ifdef XF86DRI
     Bool           CPStarted   = info->cp->CPStarted;
 
-    if (CPStarted) {
+    if (CPStarted && !info->drm_mode_setting) {
 	DRILock(pScrn->pScreen, 0);
 	RADEONCP_STOP(pScrn, info);
     }
@@ -5519,8 +5519,10 @@ Bool RADEONSwitchMode(int scrnIndex, DisplayModePtr mode, int flags)
 #endif
     }
 
-    if (info->accelOn)
-        RADEON_SYNC(info, pScrn);
+    if (!info->drm_mode_setting) {
+    	if (info->accelOn)
+       	    RADEON_SYNC(info, pScrn);
+    }
 
     ret = xf86SetSingleMode (pScrn, mode, RR_Rotate_0);
 
@@ -5532,16 +5534,19 @@ Bool RADEONSwitchMode(int scrnIndex, DisplayModePtr mode, int flags)
 	/* xf86SetRootClip would do, but can't access that here */
     }
 
-    if (info->accelOn) {
-        RADEON_SYNC(info, pScrn);
-	if (info->ChipFamily < CHIP_FAMILY_R600)
-	    RADEONEngineRestore(pScrn);
-    }
+    if (!info->drm_mode_setting)
+        if (info->accelOn) {
+           RADEON_SYNC(info, pScrn);
+	   if (info->ChipFamily < CHIP_FAMILY_R600)
+	       RADEONEngineRestore(pScrn);
+        }
 
 #ifdef XF86DRI
-    if (CPStarted) {
-	RADEONCP_START(pScrn, info);
-	DRIUnlock(pScrn->pScreen);
+    if (!info->drm_mode_setting) {
+    	if (CPStarted) {
+		RADEONCP_START(pScrn, info);
+		DRIUnlock(pScrn->pScreen);
+    	}
     }
 #endif
 
