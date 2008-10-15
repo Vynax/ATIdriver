@@ -365,12 +365,14 @@ static Bool FUNC_NAME(R100TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
     Bool repeat = pPict->repeat && pPict->repeatType != RepeatPad &&
 	!(unit == 0 && (info->accel_state->need_src_tile_x || info->accel_state->need_src_tile_y));
     int i;
+    struct radeon_exa_pixmap_priv *driver_priv;
+    int qwords;
     ACCEL_PREAMBLE();
 
     txpitch = exaGetPixmapPitch(pPix);
-    txoffset = exaGetPixmapOffset(pPix) + info->fbLocation + pScrn->fbOffset;
+    txoffset = exaGetPixmapOffset(pPix);
 
-    if ((txoffset & 0x1f) != 0)
+    if (!info->new_cs && ((txoffset & 0x1f) != 0))
 	RADEON_FALLBACK(("Bad texture offset 0x%x\n", (int)txoffset));
     if ((txpitch & 0x1f) != 0)
 	RADEON_FALLBACK(("Bad texture pitch 0x%x\n", (int)txpitch));
@@ -426,7 +428,8 @@ static Bool FUNC_NAME(R100TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	}
     }
 
-    BEGIN_ACCEL(5);
+    qwords = info->new_cs ? 7 : 5;
+    BEGIN_ACCEL(qwords);
     if (unit == 0) {
 	OUT_ACCEL_REG(RADEON_PP_TXFILTER_0, txfilter);
 	OUT_ACCEL_REG(RADEON_PP_TXFORMAT_0, txformat);
@@ -434,7 +437,15 @@ static Bool FUNC_NAME(R100TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	    (pPix->drawable.width - 1) |
 	    ((pPix->drawable.height - 1) << RADEON_TEX_VSIZE_SHIFT));
 	OUT_ACCEL_REG(RADEON_PP_TEX_PITCH_0, txpitch - 32);
-	OUT_ACCEL_REG(RADEON_PP_TXOFFSET_0, txoffset);
+
+	if (info->new_cs) {
+	    driver_priv = exaGetPixmapDriverPrivate(pPix); 
+	    OUT_ACCEL_REG(RADEON_PP_TXOFFSET_0, 0);
+	    OUT_RELOC(driver_priv->bo, RADEON_GEM_DOMAIN_VRAM | RADEON_GEM_DOMAIN_GTT, 0);
+	} else {
+	    txoffset += info->fbLocation + pScrn->fbOffset;
+	    OUT_ACCEL_REG(RADEON_PP_TXOFFSET_0, txoffset);
+	}
 	/* emit a texture relocation */
     } else {
 	OUT_ACCEL_REG(RADEON_PP_TXFILTER_1, txfilter);
@@ -444,7 +455,15 @@ static Bool FUNC_NAME(R100TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	    (pPix->drawable.width - 1) |
 	    ((pPix->drawable.height - 1) << RADEON_TEX_VSIZE_SHIFT));
 	OUT_ACCEL_REG(RADEON_PP_TEX_PITCH_1, txpitch - 32);
-	OUT_ACCEL_REG(RADEON_PP_TXOFFSET_1, txoffset);
+	if (info->new_cs) {
+	    driver_priv = exaGetPixmapDriverPrivate(pPix); 
+	    OUT_ACCEL_REG(RADEON_PP_TXOFFSET_1, 0);
+	    OUT_RELOC(driver_priv->bo, RADEON_GEM_DOMAIN_VRAM | RADEON_GEM_DOMAIN_GTT, 0);
+	} else {
+	    txoffset += info->fbLocation + pScrn->fbOffset;
+	    OUT_ACCEL_REG(RADEON_PP_TXOFFSET_1, txoffset);
+	}
+	    
 	/* emit a texture relocation */
     }
     FINISH_ACCEL();
@@ -554,6 +573,8 @@ static Bool FUNC_NAME(R100PrepareComposite)(int op,
     uint32_t dst_format, dst_offset, dst_pitch, colorpitch;
     uint32_t pp_cntl, blendcntl, cblend, ablend;
     int pixel_shift;
+    struct radeon_exa_pixmap_priv *driver_priv;
+    int qwords;
     ACCEL_PREAMBLE();
 
     TRACE;
@@ -571,15 +592,13 @@ static Bool FUNC_NAME(R100PrepareComposite)(int op,
 
     pixel_shift = pDst->drawable.bitsPerPixel >> 4;
 
-    dst_offset = exaGetPixmapOffset(pDst) + info->fbLocation + pScrn->fbOffset;
+    dst_offset = exaGetPixmapOffset(pDst);
     dst_pitch = exaGetPixmapPitch(pDst);
     colorpitch = dst_pitch >> pixel_shift;
     if (RADEONPixmapIsColortiled(pDst))
 	colorpitch |= RADEON_COLOR_TILE_ENABLE;
 
-    dst_offset = exaGetPixmapOffset(pDst) + info->fbLocation + pScrn->fbOffset;
-    dst_pitch = exaGetPixmapPitch(pDst);
-    if ((dst_offset & 0x0f) != 0)
+    if (!info->new_cs && (dst_offset & 0x0f) != 0)
 	RADEON_FALLBACK(("Bad destination offset 0x%x\n", (int)dst_offset));
     if (((dst_pitch >> pixel_shift) & 0x7) != 0)
 	RADEON_FALLBACK(("Bad destination pitch 0x%x\n", (int)dst_pitch));
@@ -601,10 +620,18 @@ static Bool FUNC_NAME(R100PrepareComposite)(int op,
 	info->accel_state->is_transform[1] = FALSE;
     }
 
-    BEGIN_ACCEL(8);
+    qwords = info->new_cs ? 10 : 8;
+    BEGIN_ACCEL(qwords);
     OUT_ACCEL_REG(RADEON_PP_CNTL, pp_cntl);
     OUT_ACCEL_REG(RADEON_RB3D_CNTL, dst_format | RADEON_ALPHA_BLEND_ENABLE);
-    OUT_ACCEL_REG(RADEON_RB3D_COLOROFFSET, dst_offset);
+    if (info->new_cs) {
+      	driver_priv = exaGetPixmapDriverPrivate(pDst);
+        OUT_ACCEL_REG(RADEON_RB3D_COLOROFFSET, 0);
+	OUT_RELOC(driver_priv->bo, 0, RADEON_GEM_DOMAIN_VRAM);
+    } else {
+        dst_offset += info->fbLocation + pScrn->fbOffset;
+	OUT_ACCEL_REG(RADEON_RB3D_COLOROFFSET, dst_offset);
+    }
     OUT_ACCEL_REG(RADEON_RB3D_COLORPITCH, colorpitch);
 
     /* IN operator: Multiply src by mask components or mask alpha.
@@ -704,13 +731,17 @@ static Bool FUNC_NAME(R200TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
     Bool repeat = pPict->repeat && pPict->repeatType != RepeatPad &&
 	!(unit == 0 && (info->accel_state->need_src_tile_x || info->accel_state->need_src_tile_y));
     int i;
+    struct radeon_exa_pixmap_priv *driver_priv;
+    int qwords;
     ACCEL_PREAMBLE();
 
     txpitch = exaGetPixmapPitch(pPix);
-    txoffset = exaGetPixmapOffset(pPix) + info->fbLocation + pScrn->fbOffset;
+    txoffset = exaGetPixmapOffset(pPix);
 
-    if ((txoffset & 0x1f) != 0)
-	RADEON_FALLBACK(("Bad texture offset 0x%x\n", (int)txoffset));
+    if (!info->new_cs) {
+	if ((txoffset & 0x1f) != 0)
+	    RADEON_FALLBACK(("Bad texture offset 0x%x\n", (int)txoffset));
+    }
     if ((txpitch & 0x1f) != 0)
 	RADEON_FALLBACK(("Bad texture pitch 0x%x\n", (int)txpitch));
 
@@ -767,7 +798,8 @@ static Bool FUNC_NAME(R200TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	}
     }
 
-    BEGIN_ACCEL(6);
+    qwords = info->new_cs ? 8 : 6;
+    BEGIN_ACCEL(qwords);
     if (unit == 0) {
 	OUT_ACCEL_REG(R200_PP_TXFILTER_0, txfilter);
 	OUT_ACCEL_REG(R200_PP_TXFORMAT_0, txformat);
@@ -775,8 +807,15 @@ static Bool FUNC_NAME(R200TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	OUT_ACCEL_REG(R200_PP_TXSIZE_0, (pPix->drawable.width - 1) |
 		      ((pPix->drawable.height - 1) << RADEON_TEX_VSIZE_SHIFT));
 	OUT_ACCEL_REG(R200_PP_TXPITCH_0, txpitch - 32);
-	OUT_ACCEL_REG(R200_PP_TXOFFSET_0, txoffset);
-	/* emit a texture relocation */
+	if (info->new_cs) {
+	    driver_priv = exaGetPixmapDriverPrivate(pPix);
+
+	    OUT_ACCEL_REG(R200_PP_TXOFFSET_0, driver_priv ? 0 : txoffset);
+	    OUT_RELOC(driver_priv->bo, RADEON_GEM_DOMAIN_VRAM | RADEON_GEM_DOMAIN_GTT, 0);
+	} else {
+	    txoffset += info->fbLocation + pScrn->fbOffset;
+	    OUT_ACCEL_REG(R200_PP_TXOFFSET_0, txoffset);
+	}
     } else {
 	OUT_ACCEL_REG(R200_PP_TXFILTER_1, txfilter);
 	OUT_ACCEL_REG(R200_PP_TXFORMAT_1, txformat);
@@ -784,7 +823,16 @@ static Bool FUNC_NAME(R200TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	OUT_ACCEL_REG(R200_PP_TXSIZE_1, (pPix->drawable.width - 1) |
 		      ((pPix->drawable.height - 1) << RADEON_TEX_VSIZE_SHIFT));
 	OUT_ACCEL_REG(R200_PP_TXPITCH_1, txpitch - 32);
-	OUT_ACCEL_REG(R200_PP_TXOFFSET_1, txoffset);
+	if (info->new_cs) {
+	    uint32_t handle = 0;
+	    driver_priv = exaGetPixmapDriverPrivate(pPix);
+
+	    OUT_ACCEL_REG(R200_PP_TXOFFSET_1, driver_priv ? 0 : txoffset);
+	    OUT_RELOC(driver_priv->bo, RADEON_GEM_DOMAIN_VRAM | RADEON_GEM_DOMAIN_GTT, 0);
+	} else {
+	    txoffset += info->fbLocation + pScrn->fbOffset;
+	    OUT_ACCEL_REG(R200_PP_TXOFFSET_1, txoffset);
+	}
 	/* emit a texture relocation */
     }
     FINISH_ACCEL();
@@ -878,6 +926,8 @@ static Bool FUNC_NAME(R200PrepareComposite)(int op, PicturePtr pSrcPicture,
     uint32_t dst_format, dst_offset, dst_pitch;
     uint32_t pp_cntl, blendcntl, cblend, ablend, colorpitch;
     int pixel_shift;
+    struct radeon_exa_pixmap_priv *driver_priv;
+    int qwords;
     ACCEL_PREAMBLE();
 
     TRACE;
@@ -895,13 +945,13 @@ static Bool FUNC_NAME(R200PrepareComposite)(int op, PicturePtr pSrcPicture,
 
     pixel_shift = pDst->drawable.bitsPerPixel >> 4;
 
-    dst_offset = exaGetPixmapOffset(pDst) + info->fbLocation + pScrn->fbOffset;
+    dst_offset = exaGetPixmapOffset(pDst);
     dst_pitch = exaGetPixmapPitch(pDst);
     colorpitch = dst_pitch >> pixel_shift;
     if (RADEONPixmapIsColortiled(pDst))
 	colorpitch |= RADEON_COLOR_TILE_ENABLE;
 
-    if ((dst_offset & 0x0f) != 0)
+    if (!info->new_cs && (dst_offset & 0x0f) != 0)
 	RADEON_FALLBACK(("Bad destination offset 0x%x\n", (int)dst_offset));
     if (((dst_pitch >> pixel_shift) & 0x7) != 0)
 	RADEON_FALLBACK(("Bad destination pitch 0x%x\n", (int)dst_pitch));
@@ -923,11 +973,22 @@ static Bool FUNC_NAME(R200PrepareComposite)(int op, PicturePtr pSrcPicture,
 	info->accel_state->is_transform[1] = FALSE;
     }
 
-    BEGIN_ACCEL(11);
+    qwords = info->new_cs ? 13 : 11;
+    BEGIN_ACCEL(qwords);
 
     OUT_ACCEL_REG(RADEON_PP_CNTL, pp_cntl);
     OUT_ACCEL_REG(RADEON_RB3D_CNTL, dst_format | RADEON_ALPHA_BLEND_ENABLE);
-    OUT_ACCEL_REG(RADEON_RB3D_COLOROFFSET, dst_offset);
+
+    if (info->new_cs) {
+	driver_priv = exaGetPixmapDriverPrivate(pDst);
+	assert(driver_priv);
+
+        OUT_ACCEL_REG(RADEON_RB3D_COLOROFFSET, 0);
+	OUT_RELOC(driver_priv->bo, 0, RADEON_GEM_DOMAIN_VRAM);
+    } else {
+        dst_offset += info->fbLocation + pScrn->fbOffset;
+	OUT_ACCEL_REG(RADEON_RB3D_COLOROFFSET, dst_offset);
+    }
 
     OUT_ACCEL_REG(R200_SE_VTX_FMT_0, R200_VTX_XY);
     if (pMask)
