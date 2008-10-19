@@ -692,15 +692,16 @@ RADEONTexOffsetStart(PixmapPtr pPix)
     driver_priv = exaGetPixmapDriverPrivate(pPix);
 
     if (driver_priv) {
+        //offset = dri_bo_get_handle(driver_priv->bo);
         offset = driver_priv->bo->offset;
     } else {
     	exaMoveInPixmap(pPix);
-        ExaOffscreenMarkUsed(pPix);
         offset = exaGetPixmapOffset(pPix);
     	if (offset > info->FbMapSize)
 		return ~0ULL;
     	else
     		offset += info->fbLocation;
+        ExaOffscreenMarkUsed(pPix);
     }
 
     return offset;
