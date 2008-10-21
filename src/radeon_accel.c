@@ -619,6 +619,7 @@ int RADEONCPStop(ScrnInfoPtr pScrn, RADEONInfoPtr info)
     }
 }
 
+#define RADEON_IB_RESERVE (16 * sizeof(uint32_t))
 drmBufPtr RADEONCSGetBuffer(ScrnInfoPtr pScrn)
 {
     RADEONInfoPtr  info = RADEONPTR(pScrn);
@@ -628,7 +629,7 @@ drmBufPtr RADEONCSGetBuffer(ScrnInfoPtr pScrn)
         return NULL;
 
     info->cp->ib_gem_fake.used = 0;
-    info->cp->ib_gem_fake.total = RADEON_BUFFER_SIZE - (16*4); // reserve 16 dwords
+    info->cp->ib_gem_fake.total = RADEON_BUFFER_SIZE - RADEON_IB_RESERVE; // reserve 16 dwords
     return &info->cp->ib_gem_fake;
 }
 
@@ -640,7 +641,7 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     RING_LOCALS;
 
     /* always add the cache flushes to the end of the IB */
-    info->cp->indirectBuffer->total += 16 * 4;
+    info->cp->indirectBuffer->total += RADEON_IB_RESERVE;
     
     /* end of IB purge caches */
     if (info->cs_used_depth) {
@@ -665,7 +666,7 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
 
     info->cp->indirectStart = 0;
     info->cp->indirectBuffer->used = 0;
-    info->cp->indirectBuffer->total -= 16*4;
+    info->cp->indirectBuffer->total -= RADEON_IB_RESERVE;
 
     if (info->bufmgr)
       radeon_gem_bufmgr_post_submit(info->bufmgr);
