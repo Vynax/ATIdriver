@@ -73,6 +73,7 @@ typedef struct _dri_bo_gem {
 	struct _dri_bo_gem *next;
 	struct _dri_bo_gem *reloc_next;
 	int in_vram; /* have we migrated this bo to VRAM ever */
+	int touched;
 } dri_bo_gem;
 
 typedef struct _dri_bufmgr_gem {
@@ -116,6 +117,7 @@ dri_gem_bo_alloc(dri_bufmgr *bufmgr, const char *name,
 	gem_bo->map_count = 0;
 	gem_bo->in_vram = 0;
 	gem_bo->name = name;
+	gem_bo->touched = 0;
 
 	DBG("bo_create: buf %d (%s) %ldb\n",
 	    gem_bo->gem_handle, gem_bo->name, size);
@@ -172,7 +174,8 @@ dri_gem_bo_map(dri_bo *bo, int write_enable)
 
 	if (gem_bo->map_count++ != 0)
 		return 0;
-	
+
+	gem_bo->touched = 1;	
 	args.handle = gem_bo->gem_handle;
 	args.offset = 0;
 	args.size = gem_bo->bo.size;
@@ -303,6 +306,7 @@ void radeon_bufmgr_gem_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p
 		gem_bo->in_vram = 1;
 	}
 
+	gem_bo->touched = 1;
 	gem_bo->reloc_count++;
 	BUF_OUT_RING(CP_PACKET3(RADEON_CP_PACKET3_NOP, 2));
 	BUF_OUT_RING(gem_bo->gem_handle);
@@ -413,9 +417,10 @@ void radeon_bufmgr_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p, ui
 	radeon_bufmgr->emit_reloc(buf, head, count_p, read_domains, write_domain);
 }
 
-int radeon_bufmgr_gem_in_vram(dri_bo *buf)
+/* if the buffer is references by the current IB we need to flush the IB */
+int radeon_bufmgr_gem_has_references(dri_bo *buf)
 {
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
-	
-	return gem_bo->in_vram;
+
+	return gem_bo->touched;
 }
