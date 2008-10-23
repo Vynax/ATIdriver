@@ -137,6 +137,8 @@ FUNC_NAME(RADEONPrepareSolid)(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
     RINFO_FROM_SCREEN(pPix->drawable.pScreen);
     uint32_t datatype, dst_pitch_offset;
     struct radeon_exa_pixmap_priv *driver_priv;
+    int ret;
+    int retry_count = 0;
     ACCEL_PREAMBLE();
 
     TRACE;
@@ -148,6 +150,20 @@ FUNC_NAME(RADEONPrepareSolid)(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
 
     if (!RADEONGetPixmapOffsetPitch(pPix, &dst_pitch_offset))
         RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch failed\n"));
+
+
+    if (info->new_cs) {
+ retry:
+        driver_priv = exaGetPixmapDriverPrivate(pPix);      
+	ret = dri_bufmgr_check_aperture_space(driver_priv->bo, 0, RADEON_GEM_DOMAIN_VRAM);
+	if (ret) {
+	    RADEONCPFlushIndirect(pScrn, 1);
+	    retry_count++;
+	    if (retry_count == 2)
+	        RADEON_FALLBACK(("Not enough Video RAM\n"));
+	    goto retry;
+	}
+    }
 
     RADEON_SWITCH_TO_2D();
 
@@ -256,6 +272,8 @@ FUNC_NAME(RADEONPrepareCopy)(PixmapPtr pSrc,   PixmapPtr pDst,
     RINFO_FROM_SCREEN(pDst->drawable.pScreen);
     uint32_t datatype, src_pitch_offset, dst_pitch_offset;
     struct radeon_exa_pixmap_priv *driver_priv;
+    int ret;
+    int retry_count = 0;
     TRACE;
 
     info->accel_state->xdir = xdir;
@@ -271,13 +289,34 @@ FUNC_NAME(RADEONPrepareCopy)(PixmapPtr pSrc,   PixmapPtr pDst,
     if (!RADEONGetPixmapOffsetPitch(pDst, &dst_pitch_offset))
         RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch dest failed\n"));
 
-    driver_priv = exaGetPixmapDriverPrivate(pSrc);
-    if (driver_priv)
-      info->state_2d.src_bo = driver_priv->bo;
+ retry:
+    if (info->new_cs) {
+	driver_priv = exaGetPixmapDriverPrivate(pSrc);
+	if (driver_priv) {
+	    ret = dri_bufmgr_check_aperture_space(driver_priv->bo, RADEON_GEM_DOMAIN_GTT | RADEON_GEM_DOMAIN_VRAM, 0);
+	    if (ret) {
+		RADEONCPFlushIndirect(pScrn, 1);
+		retry_count++;
+		if (retry_count == 2)
+		    RADEON_FALLBACK(("Not enough Video RAM\n"));
+		goto retry;
+	    }
+	    info->state_2d.src_bo = driver_priv->bo;
 
-    driver_priv = exaGetPixmapDriverPrivate(pDst);
-    if (driver_priv)
-      info->state_2d.dst_bo = driver_priv->bo;
+	    driver_priv = exaGetPixmapDriverPrivate(pDst);
+	    if (driver_priv) {
+		ret = dri_bufmgr_check_aperture_space(driver_priv->bo, 0, RADEON_GEM_DOMAIN_VRAM);
+		if (ret) {
+		    RADEONCPFlushIndirect(pScrn, 1);
+		    retry_count++;
+		    if (retry_count == 2)
+		        RADEON_FALLBACK(("Not enough Video RAM\n"));
+		    goto retry;
+		}
+		info->state_2d.dst_bo = driver_priv->bo;
+	    }
+	}
+    }
 
     FUNC_NAME(RADEONDoPrepareCopy)(pScrn, src_pitch_offset, dst_pitch_offset,
 				   datatype, rop, planemask);

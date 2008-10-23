@@ -73,7 +73,10 @@ typedef struct _dri_bo_gem {
 	struct _dri_bo_gem *next;
 	struct _dri_bo_gem *reloc_next;
 	int in_vram; /* have we migrated this bo to VRAM ever */
+	int pinned;
 	int touched;
+	int space_accounted;
+
 } dri_bo_gem;
 
 typedef struct _dri_bufmgr_gem {
@@ -81,6 +84,10 @@ typedef struct _dri_bufmgr_gem {
 	struct radeon_bufmgr radeon_bufmgr;
 	int fd;
 	struct _dri_bo_gem *reloc_head;
+	uint32_t vram_limit;
+	uint32_t vram_write_used, gart_write_used;
+	uint32_t read_used;
+
 } dri_bufmgr_gem;
 
 static dri_bo *
@@ -241,6 +248,7 @@ radeon_bo_gem_create_from_handle(dri_bufmgr *bufmgr,
     bo_gem->bo.bufmgr = bufmgr;
     bo_gem->name = 0;
     bo_gem->refcount = 1;
+    bo_gem->pinned = 1;
     bo_gem->gem_handle = handle;
 
     return &bo_gem->bo;
@@ -329,7 +337,8 @@ static int radeon_gem_bufmgr_pin(dri_bo *bo, int domain)
 	ret = ioctl(bufmgr_gem->fd, DRM_IOCTL_RADEON_GEM_PIN, &pin);
 	if (ret != 0)
 		return -1;
-	
+
+	gem_bo->pinned = 1;
 	return 0;
 }
 
@@ -342,6 +351,7 @@ static void radeon_gem_bufmgr_unpin(dri_bo *bo)
 
 	unpin.handle = gem_bo->gem_handle;
 	ioctl(bufmgr_gem->fd, DRM_IOCTL_RADEON_GEM_UNPIN, &unpin);
+	gem_bo->pinned = 0;
 }
 
 
@@ -350,6 +360,33 @@ static uint32_t radeon_gem_bufmgr_get_handle(dri_bo *buf)
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
 	
 	return gem_bo->gem_handle;
+}
+
+static int radeon_gem_bufmgr_check_aperture_space(dri_bo *buf, uint32_t read_domains, uint32_t write_domain)
+{
+	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)buf->bufmgr;
+ 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
+
+	if (gem_bo->pinned)
+		return 0;
+
+	if (gem_bo->space_accounted == 1)
+		return 0;
+
+	if (write_domain == RADEON_GEM_DOMAIN_VRAM) {
+		bufmgr_gem->vram_write_used += buf->size;
+	} else {
+		bufmgr_gem->read_used += buf->size;
+	}
+
+	if (bufmgr_gem->vram_write_used > bufmgr_gem->vram_limit) {
+		bufmgr_gem->vram_write_used = 0;
+		return -1;
+	}
+
+	gem_bo->space_accounted = 1;
+
+	return 0;
 }
 
 /**
@@ -381,6 +418,7 @@ radeon_bufmgr_gem_init(int fd)
 	//bufmgr_gem->bufmgr.bo_wait_rendering = radeon_bufmgr_gem_wait_rendering;
 	bufmgr_gem->radeon_bufmgr.emit_reloc = radeon_bufmgr_gem_emit_reloc;
 	bufmgr_gem->bufmgr.get_handle = radeon_gem_bufmgr_get_handle;
+	bufmgr_gem->bufmgr.check_aperture_space = radeon_gem_bufmgr_check_aperture_space;
 	bufmgr_gem->bufmgr.debug = 0;
 	return &bufmgr_gem->bufmgr;
 }
@@ -390,7 +428,6 @@ void radeon_gem_bufmgr_post_submit(dri_bufmgr *bufmgr)
 {
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bufmgr;
 	struct _dri_bo_gem *trav, *prev;
-
 	if (!bufmgr_gem->reloc_head)
 		return;
 
@@ -401,10 +438,13 @@ void radeon_gem_bufmgr_post_submit(dri_bufmgr *bufmgr)
 		
 		prev->reloc_count = 0;
 		prev->reloc_next = NULL;
+		prev->space_accounted = 0;
 		dri_bo_unreference(&prev->bo);
 	}
 	bufmgr_gem->reloc_head = NULL;
-
+	bufmgr_gem->read_used = 0;
+	bufmgr_gem->vram_write_used = 0;
+	
 }
 
 
@@ -423,4 +463,12 @@ int radeon_bufmgr_gem_has_references(dri_bo *buf)
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
 
 	return gem_bo->touched;
+}
+
+void radeon_bufmgr_gem_set_vram_limit(dri_bufmgr *bufmgr, uint32_t vram_limit)
+{
+	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bufmgr;
+
+	ErrorF("setting vram limit to %d\n", vram_limit);
+	bufmgr_gem->vram_limit = vram_limit;
 }

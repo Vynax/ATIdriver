@@ -4,6 +4,7 @@
 #include <sys/mman.h>
 #include "radeon.h"
 #include "radeon_drm.h"
+#include "radeon_bufmgr_gem.h"
 
 Bool
 radeon_bind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
@@ -364,6 +365,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     if (info->drm_mode_setting) {
 	drmmode_set_fb(pScrn, &info->drmmode, pScrn->virtualX, RADEON_ALIGN(pScrn->virtualY, 16), stride, info->mm.front_buffer->kernel_bo_handle);
     }
+    radeon_bufmgr_gem_set_vram_limit(info->bufmgr, remain_size_bytes / 2);
     return TRUE;
 }
 

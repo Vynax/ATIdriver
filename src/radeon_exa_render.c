@@ -1327,6 +1327,7 @@ static Bool R300CheckComposite(int op, PicturePtr pSrcPicture, PicturePtr pMaskP
     return TRUE;
 
 }
+
 #endif /* ONLY_ONCE */
 
 static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
@@ -1338,11 +1339,49 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
     uint32_t txenable, colorpitch;
     uint32_t blendcntl;
     int pixel_shift;
-    int qwords;
+    int qwords, ret;
+    int retry_count = 0;
     struct radeon_exa_pixmap_priv *driver_priv;
     ACCEL_PREAMBLE();
 
     TRACE;
+
+ retry:
+    if (info->new_cs) {
+	driver_priv = exaGetPixmapDriverPrivate(pSrc);
+	ret = dri_bufmgr_check_aperture_space(driver_priv->bo, RADEON_GEM_DOMAIN_GTT | RADEON_GEM_DOMAIN_VRAM, 0);
+	if (ret) {
+	    RADEONCPFlushIndirect(pScrn, 1);
+	    retry_count++;
+	    if (retry_count == 2)
+	        RADEON_FALLBACK(("Not enough Video RAM\n"));
+	    goto retry;
+	}
+
+	if (pMask) {
+	    driver_priv = exaGetPixmapDriverPrivate(pMask);
+	    ret = dri_bufmgr_check_aperture_space(driver_priv->bo, RADEON_GEM_DOMAIN_GTT | RADEON_GEM_DOMAIN_VRAM, 0);
+	    if (ret) {
+		RADEONCPFlushIndirect(pScrn, 1);
+		retry_count++;
+		if (retry_count == 2)
+		    RADEON_FALLBACK(("Not enough Video RAM\n"));
+		goto retry;
+	    }
+	}
+
+	driver_priv = exaGetPixmapDriverPrivate(pDst);
+	if (driver_priv) {
+	    ret = dri_bufmgr_check_aperture_space(driver_priv->bo, 0, RADEON_GEM_DOMAIN_VRAM);
+	    if (ret) {
+		RADEONCPFlushIndirect(pScrn, 1);
+		retry_count++;
+		if (retry_count == 2)
+		    RADEON_FALLBACK(("Not enough Video RAM\n"));
+		goto retry;
+	    }
+	}
+    }
 
     if (!R300GetDestFormat(pDstPicture, &dst_format))
 	return FALSE;

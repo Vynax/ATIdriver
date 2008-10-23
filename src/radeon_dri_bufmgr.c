@@ -153,9 +153,9 @@ dri_bufmgr_set_debug(dri_bufmgr *bufmgr, int enable_debug)
 }
 
 int
-dri_bufmgr_check_aperture_space(dri_bo *bo)
+dri_bufmgr_check_aperture_space(dri_bo *bo, uint32_t read_domains, uint32_t write_domain)
 {
-    return bo->bufmgr->check_aperture_space(bo);
+    return bo->bufmgr->check_aperture_space(bo, read_domains, write_domain);
 }
 
 int dri_bo_pin(dri_bo *bo, int domain)
