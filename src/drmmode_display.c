@@ -165,7 +165,7 @@ copy_fb_contents (drmmode_ptr drmmode,
 
 	dest_fb = drmModeGetFB(drmmode->fd, dest_id);
 	src_fb = drmModeGetFB(drmmode->fd, src_id);
-	if (src_fb == NULL) {
+	if (src_fb == NULL || dest_fb == NULL) {
 		ErrorF("failed to get old fb, id %d\n", src_id);
 		return;
 	}
