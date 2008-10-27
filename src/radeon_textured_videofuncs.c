@@ -232,7 +232,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 
 	txoffset = pPriv->src_offset;
 
-	qwords = info->new_cs ? 8 : 6;
+	qwords = info->new_cs ? 7 : 6;
 	BEGIN_ACCEL(qwords);
 	OUT_ACCEL_REG(R300_TX_FILTER0_0, txfilter);
 	OUT_ACCEL_REG(R300_TX_FILTER1_0, 0);
@@ -294,7 +294,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			    R300_TX_MAG_FILTER_NEAREST |
 			    (1 << R300_TX_ID_SHIFT));
 
-		qwords = info->new_cs ? 8 : 6;
+		qwords = info->new_cs ? 7 : 6;
 		BEGIN_ACCEL(qwords);
 		OUT_ACCEL_REG(R300_TX_FILTER0_1, txfilter);
 		OUT_ACCEL_REG(R300_TX_FILTER1_1, 0);
@@ -1557,7 +1557,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	    }
 	}
 
-	qwords = info->new_cs ? 8 : 6;
+	qwords = info->new_cs ? 7 : 6;
 	BEGIN_ACCEL(qwords);
 	OUT_ACCEL_REG(R300_TX_INVALTAGS, 0);
 	OUT_ACCEL_REG(R300_TX_ENABLE, txenable);

@@ -71,7 +71,6 @@ typedef struct _dri_bo_gem {
 	uint32_t gem_handle;
 	const char *name;
 	struct _dri_bo_gem *next;
-	struct _dri_bo_gem *reloc_next;
 	int in_vram; /* have we migrated this bo to VRAM ever */
 	int pinned;
 	int touched;
@@ -83,11 +82,11 @@ typedef struct _dri_bufmgr_gem {
 	dri_bufmgr bufmgr;
 	struct radeon_bufmgr radeon_bufmgr;
 	int fd;
-	struct _dri_bo_gem *reloc_head;
 	uint32_t vram_limit;
 	uint32_t vram_write_used, gart_write_used;
 	uint32_t read_used;
 
+	struct _dri_bo_gem *bo_list;
 } dri_bufmgr_gem;
 
 static dri_bo *
@@ -126,6 +125,9 @@ dri_gem_bo_alloc(dri_bufmgr *bufmgr, const char *name,
 	gem_bo->name = name;
 	gem_bo->touched = 0;
 
+	gem_bo->next = bufmgr_gem->bo_list;
+	bufmgr_gem->bo_list = gem_bo;
+
 	DBG("bo_create: buf %d (%s) %ldb\n",
 	    gem_bo->gem_handle, gem_bo->name, size);
 
@@ -142,7 +144,7 @@ dri_gem_bo_reference(dri_bo *bo)
 static void dri_gem_bo_free(dri_bo *bo)
 {
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bo->bufmgr;
-	dri_bo_gem *gem_bo = (dri_bo_gem *)bo;
+	dri_bo_gem *gem_bo = (dri_bo_gem *)bo, *trav, *prev;
 	struct drm_gem_close args;
 
 	if (gem_bo->map_count)
@@ -151,6 +153,21 @@ static void dri_gem_bo_free(dri_bo *bo)
 	/* close object */
 	args.handle = gem_bo->gem_handle;
 	ioctl(bufmgr_gem->fd, DRM_IOCTL_GEM_CLOSE, &args);
+
+	if (gem_bo == bufmgr_gem->bo_list)
+		bufmgr_gem->bo_list = gem_bo->next;
+	else {
+		prev = trav = bufmgr_gem->bo_list;
+		while (trav) {
+			if (trav == gem_bo) {
+				if (prev)
+					prev->next = trav->next;
+				break;
+			}
+			prev = trav;
+			trav = trav->next;
+		}
+	}
 	free(gem_bo);
 }
 
@@ -182,7 +199,7 @@ dri_gem_bo_map(dri_bo *bo, int write_enable)
 	if (gem_bo->map_count++ != 0)
 		return 0;
 
-	gem_bo->touched = 1;	
+	gem_bo->touched = 1;
 	args.handle = gem_bo->gem_handle;
 	args.offset = 0;
 	args.size = gem_bo->bo.size;
@@ -285,25 +302,65 @@ radeon_bo_gem_create_from_name(dri_bufmgr *bufmgr, const char *name,
 		__head[__count++] = (x);				\
 	} while (0)
 
-void radeon_bufmgr_gem_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p, uint32_t read_domains, uint32_t write_domain)
+void radeon_bufmgr_gem_emit_reloc(dri_bo *buf, struct radeon_relocs_info *reloc_info, uint32_t *head, uint32_t *count_p, uint32_t read_domains, uint32_t write_domain)
 {
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)buf->bufmgr;
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
 	uint32_t *__head = head;
 	uint32_t __count = *count_p;
 	dri_bo_gem *trav;
-	
-	if (gem_bo->reloc_count == 0) {
-		dri_bo_reference(buf);
+	int i;
+	int index;
+	int have_reloc = -1;
 
-		if (bufmgr_gem->reloc_head == NULL)
-			bufmgr_gem->reloc_head = gem_bo;
-		else {
-			trav = bufmgr_gem->reloc_head;
-			while (trav->reloc_next != NULL)
-				trav = trav->reloc_next;
-			trav->reloc_next = gem_bo;
+	for (i = 0; i < reloc_info->num_reloc; i++) {
+		if (reloc_info->buf[i * 4] == gem_bo->gem_handle) {
+			have_reloc = i;
+			break;
 		}
+	}
+
+	if (have_reloc != -1) {
+		uint32_t old_write, old_read;
+
+		index = have_reloc * 4;
+		old_read = reloc_info->buf[index + 1];
+		old_write = reloc_info->buf[index + 2];
+
+		/* error up for now - work out new domains - if we have a write */
+		if (write_domain && (old_read & write_domain)) {
+			reloc_info->buf[index + 1] = 0;
+			reloc_info->buf[index + 2] = write_domain;
+		} else if (read_domains & old_write) {
+			reloc_info->buf[index + 1] = 0;
+		} else {
+			/* rewrite the domains */
+			if (write_domain != old_write)
+				ErrorF("WRITE DOMAIN RELOC FAILURE 0x%x %d %d\n", gem_bo->gem_handle, write_domain, old_write);
+			if (read_domains != old_read)
+				ErrorF("READ DOMAIN RELOC FAILURE 0x%x %d %d\n", gem_bo->gem_handle, read_domains, old_read);
+		}
+		reloc_info->buf[index + 3]++;
+
+	} else {
+
+		if ((reloc_info->num_reloc + 1) * RADEON_RELOC_SIZE > reloc_info->size) {
+			/* resize the buffer */
+			reloc_info->size += getpagesize();
+			reloc_info->buf = xrealloc(reloc_info->buf, reloc_info->size);
+			if (!reloc_info->buf)
+				FatalError("failed to increase reloc buffer size\n");
+		}
+
+		dri_bo_reference(buf);
+		gem_bo->touched = 1;
+
+		index = reloc_info->num_reloc * 4;
+		reloc_info->buf[index] = gem_bo->gem_handle;
+		reloc_info->buf[index + 1] = read_domains;
+		reloc_info->buf[index + 2] = write_domain;
+		reloc_info->buf[index + 3] = 1;
+		reloc_info->num_reloc++;
 	}
 
 	if (write_domain == RADEON_GEM_DOMAIN_VRAM) {
@@ -314,12 +371,8 @@ void radeon_bufmgr_gem_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p
 		gem_bo->in_vram = 1;
 	}
 
-	gem_bo->touched = 1;
-	gem_bo->reloc_count++;
-	BUF_OUT_RING(CP_PACKET3(RADEON_CP_PACKET3_NOP, 2));
-	BUF_OUT_RING(gem_bo->gem_handle);
-	BUF_OUT_RING(read_domains);
-	BUF_OUT_RING(write_domain);
+	BUF_OUT_RING(CP_PACKET3(RADEON_CP_PACKET3_NOP, 0));
+	BUF_OUT_RING(index);
 	*count_p = __count;
 }
 
@@ -424,24 +477,29 @@ radeon_bufmgr_gem_init(int fd)
 }
 
 
-void radeon_gem_bufmgr_post_submit(dri_bufmgr *bufmgr)
+void radeon_gem_bufmgr_post_submit(dri_bufmgr *bufmgr, struct radeon_relocs_info *reloc_info)
 {
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bufmgr;
 	struct _dri_bo_gem *trav, *prev;
-	if (!bufmgr_gem->reloc_head)
+	int i;
+	
+	if (!bufmgr_gem->bo_list)
 		return;
 
-	trav = bufmgr_gem->reloc_head;
-	while (trav) {
-		prev = trav;
-		trav = trav->reloc_next;
-		
-		prev->reloc_count = 0;
-		prev->reloc_next = NULL;
-		prev->space_accounted = 0;
-		dri_bo_unreference(&prev->bo);
+	for (i = 0; i < reloc_info->num_reloc; i++) {
+		trav = bufmgr_gem->bo_list;
+		while (trav) {
+			prev = trav;
+			trav = trav->next;
+			
+			if (prev->gem_handle == reloc_info->buf[i * 4]) {
+				prev->space_accounted = 0;
+				dri_bo_unreference(&prev->bo);
+			}
+		}
 	}
-	bufmgr_gem->reloc_head = NULL;
+
+//	bufmgr_gem->reloc_head = NULL;
 	bufmgr_gem->read_used = 0;
 	bufmgr_gem->vram_write_used = 0;
 	
@@ -449,12 +507,12 @@ void radeon_gem_bufmgr_post_submit(dri_bufmgr *bufmgr)
 
 
 
-void radeon_bufmgr_emit_reloc(dri_bo *buf, uint32_t *head, uint32_t *count_p, uint32_t read_domains, uint32_t write_domain)
+void radeon_bufmgr_emit_reloc(dri_bo *buf, struct radeon_relocs_info *relocs, uint32_t *head, uint32_t *count_p, uint32_t read_domains, uint32_t write_domain)
 {
 	struct radeon_bufmgr *radeon_bufmgr;
 
 	radeon_bufmgr = (struct radeon_bufmgr *)(buf->bufmgr + 1);
-	radeon_bufmgr->emit_reloc(buf, head, count_p, read_domains, write_domain);
+	radeon_bufmgr->emit_reloc(buf, relocs, head, count_p, read_domains, write_domain);
 }
 
 /* if the buffer is references by the current IB we need to flush the IB */

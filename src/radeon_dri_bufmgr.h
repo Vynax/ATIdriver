@@ -40,6 +40,15 @@ typedef struct _dri_bufmgr dri_bufmgr;
 typedef struct _dri_bo dri_bo;
 typedef struct _dri_fence dri_fence;
 
+/* reloc format */
+/* gem handle, read_domains, write_domain, reloc_count */
+#define RADEON_RELOC_SIZE 4
+struct radeon_relocs_info {
+    uint32_t *buf;
+    int size;
+    int num_reloc;
+};
+
 struct _dri_bo {
    /** Size in bytes of the buffer object. */
    unsigned long size;

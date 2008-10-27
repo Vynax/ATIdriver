@@ -455,6 +455,7 @@ struct radeon_2d_state {
 };
     
 #ifdef XF86DRI
+
 struct radeon_cp {
     Bool              CPRuns;           /* CP is running */
     Bool              CPInUse;          /* CP has been used by X server */
@@ -470,7 +471,8 @@ struct radeon_cp {
 
     drmBuf         ib_gem_fake;
     void *ib_ptr;
-
+  
+    struct radeon_relocs_info relocs;
     /* Debugging info for BEGIN_RING/ADVANCE_RING pairs. */
     int               dma_begin_count;
     char              *dma_debug_func;
@@ -1381,7 +1383,7 @@ do {									\
  is in VRAM */
 #define OUT_RING_RELOC(x, read_domains, write_domains)			\
   do {									\
-    radeon_bufmgr_emit_reloc(x, __head, &__count, read_domains, write_domains); \
+    radeon_bufmgr_emit_reloc(x, &info->cp->relocs, __head, &__count, read_domains, write_domains); \
   } while(0)
 
 

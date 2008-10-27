@@ -100,8 +100,8 @@ static void FUNC_NAME(Emit2DState)(ScrnInfoPtr pScrn, int op)
 
     has_src = info->state_2d.src_pitch_offset || (info->new_cs && info->state_2d.src_bo);
 
-    qwords = info->new_cs ? 11 : 9;
-    qwords += (has_src ? (info->new_cs ?  3 : 1) : 0);
+    qwords = info->new_cs ? 10 : 9;
+    qwords += (has_src ? (info->new_cs ?  2 : 1) : 0);
 
     BEGIN_ACCEL(qwords);
     OUT_ACCEL_REG(RADEON_DEFAULT_SC_BOTTOM_RIGHT, info->state_2d.default_sc_bottom_right);
@@ -471,7 +471,7 @@ RADEONBlitChunk(ScrnInfoPtr pScrn, uint32_t datatype, dri_bo *src_bo, dri_bo *ds
 
     qwords = 6;
     if (src_bo && dst_bo)
-	qwords += 4;
+	qwords += 2;
 
     BEGIN_ACCEL(qwords);
     OUT_ACCEL_REG(RADEON_DP_GUI_MASTER_CNTL,

@@ -428,7 +428,7 @@ static Bool FUNC_NAME(R100TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	}
     }
 
-    qwords = info->new_cs ? 7 : 5;
+    qwords = info->new_cs ? 6 : 5;
     BEGIN_ACCEL(qwords);
     if (unit == 0) {
 	OUT_ACCEL_REG(RADEON_PP_TXFILTER_0, txfilter);
@@ -620,7 +620,7 @@ static Bool FUNC_NAME(R100PrepareComposite)(int op,
 	info->accel_state->is_transform[1] = FALSE;
     }
 
-    qwords = info->new_cs ? 10 : 8;
+    qwords = info->new_cs ? 9 : 8;
     BEGIN_ACCEL(qwords);
     OUT_ACCEL_REG(RADEON_PP_CNTL, pp_cntl);
     OUT_ACCEL_REG(RADEON_RB3D_CNTL, dst_format | RADEON_ALPHA_BLEND_ENABLE);
@@ -798,7 +798,7 @@ static Bool FUNC_NAME(R200TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	}
     }
 
-    qwords = info->new_cs ? 8 : 6;
+    qwords = info->new_cs ? 7 : 6;
     BEGIN_ACCEL(qwords);
     if (unit == 0) {
 	OUT_ACCEL_REG(R200_PP_TXFILTER_0, txfilter);
@@ -973,7 +973,7 @@ static Bool FUNC_NAME(R200PrepareComposite)(int op, PicturePtr pSrcPicture,
 	info->accel_state->is_transform[1] = FALSE;
     }
 
-    qwords = info->new_cs ? 13 : 11;
+    qwords = info->new_cs ? 12 : 11;
     BEGIN_ACCEL(qwords);
 
     OUT_ACCEL_REG(RADEON_PP_CNTL, pp_cntl);
@@ -1210,7 +1210,7 @@ static Bool FUNC_NAME(R300TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
     }
 
     qwords = pPict->repeat ? 6 : 7;
-    qwords += info->new_cs ? 2 : 0;
+    qwords += info->new_cs ? 1 : 0;
 
     BEGIN_ACCEL(qwords);
     OUT_ACCEL_REG(R300_TX_FILTER0_0 + (unit * 4), txfilter);
@@ -2063,7 +2063,7 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 				     (8191 << R300_SCISSOR_Y_SHIFT)));
     FINISH_ACCEL();
 
-    qwords = info->new_cs ? 5 : 3;
+    qwords = info->new_cs ? 4 : 3;
     BEGIN_ACCEL(qwords);
     if (info->new_cs) {
         driver_priv = exaGetPixmapDriverPrivate(pDst);

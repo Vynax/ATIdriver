@@ -624,15 +624,84 @@ drmBufPtr RADEONCSGetBuffer(ScrnInfoPtr pScrn)
 {
     RADEONInfoPtr  info = RADEONPTR(pScrn);
 
-    info->cp->ib_gem_fake.address = xcalloc(1, RADEON_BUFFER_SIZE);
-    if (!info->cp->ib_gem_fake.address)
+    info->cp->relocs.size = getpagesize();
+    info->cp->relocs.num_reloc = 0;
+    info->cp->relocs.buf = xcalloc(1, info->cp->relocs.size);
+    if (!info->cp->relocs.buf)
         return NULL;
+    info->cp->ib_gem_fake.address = xcalloc(1, RADEON_BUFFER_SIZE);
+    if (!info->cp->ib_gem_fake.address) {
+        xfree(info->cp->relocs.buf);
+	return NULL;
+    }
+
 
     info->cp->ib_gem_fake.used = 0;
     info->cp->ib_gem_fake.total = RADEON_BUFFER_SIZE - RADEON_IB_RESERVE; // reserve 16 dwords
     return &info->cp->ib_gem_fake;
 }
 
+#ifdef DRM_RADEON_CS2
+void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
+{
+    RADEONInfoPtr  info = RADEONPTR(pScrn);
+    struct drm_radeon_cs2 args;
+    struct drm_radeon_cs_chunk chunk[2];
+    uint64_t chunk_array[2];
+    int ret;
+    RING_LOCALS;
+
+    /* always add the cache flushes to the end of the IB */
+    info->cp->indirectBuffer->total += RADEON_IB_RESERVE;
+    
+    /* end of IB purge caches */
+    if (info->cs_used_depth) {
+	RADEON_PURGE_ZCACHE();
+	info->cs_used_depth = 0;
+    }
+
+    RADEON_PURGE_CACHE();
+    RADEON_WAIT_UNTIL_IDLE();
+
+    chunk[0].chunk_data = (unsigned long)info->cp->ib_gem_fake.address;
+    chunk[0].length_dw = info->cp->indirectBuffer->used / sizeof(uint32_t);
+    chunk[0].chunk_id = RADEON_CHUNK_ID_IB;
+
+    chunk[1].chunk_data = (unsigned long)info->cp->relocs.buf;
+    chunk[1].length_dw = info->cp->relocs.num_reloc * RADEON_RELOC_SIZE;
+    chunk[1].chunk_id = RADEON_CHUNK_ID_RELOCS;
+
+    ErrorF("lengths %d %d\n", chunk[0].length_dw, chunk[1].length_dw);
+
+    chunk_array[0] = (uint64_t)(unsigned long)&chunk[0];
+    chunk_array[1] = (uint64_t)(unsigned long)&chunk[1];
+
+    args.num_chunks = 2;
+    args.chunks = (uint64_t)(unsigned long)chunk_array;
+
+    ret = drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_CS2,
+			      &args, sizeof(args));
+
+    if (ret) {
+      FatalError("DRM Command submission failure %d\n", ret);
+      return;
+    }
+
+
+    info->cp->indirectStart = 0;
+    info->cp->indirectBuffer->used = 0;
+    info->cp->indirectBuffer->total -= RADEON_IB_RESERVE;
+
+    if (info->bufmgr)
+      radeon_gem_bufmgr_post_submit(info->bufmgr, &info->cp->relocs);
+    
+    info->cp->relocs.num_reloc = 0;
+    /* copy some state into the buffer now - we need to add 2D state to each
+       buffer as the kernel needs to use the blit engine to move stuff around */
+    if (info->reemit_current2d)
+      info->reemit_current2d(pScrn, 0);
+}
+#else
 void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
 {
     RADEONInfoPtr  info = RADEONPTR(pScrn);
@@ -676,6 +745,7 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     if (info->reemit_current2d)
       info->reemit_current2d(pScrn, 0);
 }
+#endif
 
 void RADEONCSReleaseIndirect(ScrnInfoPtr pScrn)
 {
