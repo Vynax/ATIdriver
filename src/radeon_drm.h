@@ -510,7 +510,7 @@ typedef struct {
 #define DRM_RADEON_GEM_PREAD  0x21
 #define DRM_RADEON_GEM_PWRITE 0x22
 #define DRM_RADEON_GEM_SET_DOMAIN 0x23
-#define DRM_RADEON_GEM_INDIRECT 0x24 // temporary for X server
+#define DRM_RADEON_GEM_WAIT_RENDERING 0x24
 
 #define DRM_RADEON_CS           0x25
 #define DRM_RADEON_CS2       0x26
@@ -551,8 +551,7 @@ typedef struct {
 #define DRM_IOCTL_RADEON_GEM_PREAD   DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_GEM_PREAD, struct drm_radeon_gem_pread)
 #define DRM_IOCTL_RADEON_GEM_PWRITE   DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_GEM_PWRITE, struct drm_radeon_gem_pwrite)
 #define DRM_IOCTL_RADEON_GEM_SET_DOMAIN  DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_GEM_SET_DOMAIN, struct drm_radeon_gem_set_domain)
-#define DRM_IOCTL_RADEON_GEM_INDIRECT DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_GEM_INDIRECT, struct drm_radeon_gem_indirect)
-
+#define DRM_IOCTL_RADEON_GEM_WAIT_RENDERING DRM_IOW(DRM_COMMAND_BASE + DRM_RADEON_GEM_WAIT_RENDERING, struct drm_radeon_gem_wait_rendering) 
 #define DRM_IOCTL_RADEON_CS DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_CS, struct drm_radeon_cs)
 #define DRM_IOCTL_RADEON_CS2 DRM_IOWR(DRM_COMMAND_BASE + DRM_RADEON_CS2, struct drm_radeon_cs2)
 
@@ -821,7 +820,8 @@ struct drm_radeon_gem_set_domain {
 	uint32_t write_domain;
 };
 
-struct drm_radeon_gem_exec_buffer {
+struct drm_radeon_gem_wait_rendering {
+	uint32_t handle;
 };
 
 struct drm_radeon_gem_pin {
@@ -865,10 +865,6 @@ struct drm_radeon_gem_pwrite {
 	uint64_t data_ptr;	/* void *, but pointers are not 32/64 compatible */
 };
 
-struct drm_radeon_gem_indirect {
-	uint32_t handle;
-	uint32_t used;
-};
 
 /* New interface which obsolete all previous interface.
  */

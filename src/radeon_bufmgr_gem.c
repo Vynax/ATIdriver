@@ -199,7 +199,7 @@ dri_gem_bo_map(dri_bo *bo, int write_enable)
 	if (gem_bo->map_count++ != 0)
 		return 0;
 
-	gem_bo->touched = 1;
+	gem_bo->touched = 1; /* workaround */
 	args.handle = gem_bo->gem_handle;
 	args.offset = 0;
 	args.size = gem_bo->bo.size;
@@ -237,15 +237,16 @@ dri_bufmgr_gem_destroy(dri_bufmgr *bufmgr)
 void radeon_bufmgr_gem_wait_rendering(dri_bo *buf)
 {
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)buf->bufmgr;
-	struct drm_radeon_gem_set_domain dom_args;
+	struct drm_radeon_gem_wait_rendering args;
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
 	int ret;
 
-	dom_args.handle = gem_bo->gem_handle;
-	dom_args.read_domains = RADEON_GEM_DOMAIN_GTT | RADEON_GEM_DOMAIN_VRAM;
-	dom_args.write_domain = 0;
-	ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_SET_DOMAIN,
-				  &dom_args, sizeof(dom_args));
+	args.handle = gem_bo->gem_handle;
+
+	do {
+	ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_WAIT_RENDERING,
+				  &args, sizeof(args));
+	} while (ret == -EAGAIN);
 	return;
 }
 
