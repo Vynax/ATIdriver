@@ -651,6 +651,9 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     int ret;
     RING_LOCALS;
 
+    if (info->cp->indirectBuffer->used == 0)
+	return;
+
     /* always add the cache flushes to the end of the IB */
     info->cp->indirectBuffer->total += RADEON_IB_RESERVE;
     
@@ -659,9 +662,6 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
 	RADEON_PURGE_ZCACHE();
 	info->cs_used_depth = 0;
     }
-
-    RADEON_PURGE_CACHE();
-    RADEON_WAIT_UNTIL_IDLE();
 
     chunk[0].chunk_data = (unsigned long)info->cp->ib_gem_fake.address;
     chunk[0].length_dw = info->cp->indirectBuffer->used / sizeof(uint32_t);
