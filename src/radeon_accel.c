@@ -671,8 +671,6 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     chunk[1].length_dw = info->cp->relocs.num_reloc * RADEON_RELOC_SIZE;
     chunk[1].chunk_id = RADEON_CHUNK_ID_RELOCS;
 
-    ErrorF("lengths %d %d\n", chunk[0].length_dw, chunk[1].length_dw);
-
     chunk_array[0] = (uint64_t)(unsigned long)&chunk[0];
     chunk_array[1] = (uint64_t)(unsigned long)&chunk[1];
 

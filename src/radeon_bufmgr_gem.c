@@ -528,6 +528,5 @@ void radeon_bufmgr_gem_set_vram_limit(dri_bufmgr *bufmgr, uint32_t vram_limit)
 {
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bufmgr;
 
-	ErrorF("setting vram limit to %d\n", vram_limit);
 	bufmgr_gem->vram_limit = vram_limit;
 }
