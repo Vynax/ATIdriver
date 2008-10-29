@@ -751,6 +751,10 @@ void RADEONCSReleaseIndirect(ScrnInfoPtr pScrn)
 
     if (!info->cp->indirectBuffer) return;
     RADEONCSFlushIndirect(pScrn, 0);
+    xfree(info->cp->relocs.buf);
+    info->cp->relocs.buf = 0;
+    info->cp->relocs.size = 0;
+    info->cp->relocs.num_reloc = 0;
     xfree(info->cp->ib_gem_fake.address);
     info->cp->ib_gem_fake.address = NULL;
     info->cp->indirectBuffer = NULL;
