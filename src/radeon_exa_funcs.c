@@ -521,6 +521,9 @@ RADEON_DFS_CS(PixmapPtr pSrc, int x, int y, int w, int h,
     dri_bo *cur_scratch;
     uint32_t src_pitch_offset;
 
+    if (!info->accelDFS)
+	return FALSE;
+
     driver_priv = exaGetPixmapDriverPrivate(pSrc);
 
     RADEONGetDatatypeBpp(bpp, &datatype);
