@@ -122,7 +122,7 @@ dri_gem_bo_alloc(dri_bufmgr *bufmgr, const char *name,
 	gem_bo->reloc_count = 0;
 	gem_bo->map_count = 0;
 	gem_bo->in_vram = 0;
-	gem_bo->name = name;
+	gem_bo->name = strdup(name);
 	gem_bo->touched = 0;
 
 	gem_bo->next = bufmgr_gem->bo_list;
@@ -168,6 +168,7 @@ static void dri_gem_bo_free(dri_bo *bo)
 			trav = trav->next;
 		}
 	}
+	free(gem_bo->name);
 	free(gem_bo);
 }
 
@@ -254,8 +255,11 @@ dri_bo *
 radeon_bo_gem_create_from_handle(dri_bufmgr *bufmgr,
 				 uint32_t handle, unsigned long size)
 {
+    dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bufmgr;
     dri_bo_gem *bo_gem;
+    char name[32];
 
+    sprintf(name, "handle:%8x", handle);
     bo_gem = calloc(1, sizeof(*bo_gem));
     if (!bo_gem)
 	return NULL;
@@ -264,11 +268,13 @@ radeon_bo_gem_create_from_handle(dri_bufmgr *bufmgr,
     bo_gem->bo.offset = 0;
     bo_gem->bo.virtual = NULL;
     bo_gem->bo.bufmgr = bufmgr;
-    bo_gem->name = 0;
+    bo_gem->name = strdup(name);
     bo_gem->refcount = 1;
     bo_gem->pinned = 1;
     bo_gem->gem_handle = handle;
 
+    bo_gem->next = bufmgr_gem->bo_list;
+    bufmgr_gem->bo_list = bo_gem;
     return &bo_gem->bo;
 }
 
