@@ -198,13 +198,15 @@ Bool radeon_unbind_all_memory(ScrnInfoPtr pScrn)
 Bool radeon_free_all_memory(ScrnInfoPtr pScrn)
 {
     RADEONInfoPtr  info   = RADEONPTR(pScrn);	
-    struct radeon_memory *mem;
+    struct radeon_memory *mem, *tmp;
     int i;
 
     for (i = 0; i < 2; i++) {
-	for (mem = info->mm.bo_list[i]; mem != NULL;
-	     mem = mem->next) {
+	
+	for (mem = info->mm.bo_list[i]; mem != NULL; ) {
+	    tmp = mem->next;
 	    radeon_free_memory(pScrn, mem);
+	    mem = tmp;
 	}
     }
     return TRUE;
