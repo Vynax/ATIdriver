@@ -200,7 +200,6 @@ dri_gem_bo_map(dri_bo *bo, int write_enable)
 	if (gem_bo->map_count++ != 0)
 		return 0;
 
-	gem_bo->touched = 1; /* workaround */
 	args.handle = gem_bo->gem_handle;
 	args.offset = 0;
 	args.size = gem_bo->bo.size;
