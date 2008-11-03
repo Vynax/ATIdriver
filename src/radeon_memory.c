@@ -261,7 +261,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     int cpp = info->CurrentLayout.pixel_bytes;
     int screen_size;
     int stride = pScrn->displayWidth * cpp;
-    int total_size_bytes = (16*1024*1024)+32*1024, remain_size_bytes;
+    int total_size_bytes = 0, remain_size_bytes;
     int fb_size_bytes;
 
     
@@ -325,7 +325,10 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     /* work out from the mm size what the exa / tex sizes need to be */
     remain_size_bytes = info->mm.vram_size - total_size_bytes;
 
-    info->dri->textureSize = remain_size_bytes / 2;
+    if (info->dri->textureSize > 0)
+    	info->dri->textureSize = (remain_size_bytes / 100) * info->dri->textureSize;
+    else
+    	info->dri->textureSize = remain_size_bytes / 2;
 
     ErrorF("texture size is %dK, exa is %dK\n", info->dri->textureSize / 1024, (remain_size_bytes - info->dri->textureSize)/1024);
 
