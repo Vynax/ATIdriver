@@ -15,5 +15,5 @@ int radeon_bufmgr_gem_has_references(dri_bo *buf);
 int radeon_bufmgr_gem_force_gtt(dri_bo *buf);
 void radeon_bufmgr_gem_set_limit(dri_bufmgr *bufmgr, uint32_t domain, uint32_t limit);
 int radeon_bufmgr_gem_in_vram(dri_bo *buf);
-
+int radeon_bo_gem_name_buffer(dri_bo *bo, uint32_t *name);
 #endif

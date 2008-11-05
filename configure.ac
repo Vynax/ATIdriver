@@ -125,6 +125,8 @@ if test "$DRI" = yes; then
 	CFLAGS="$save_CFLAGS"
 fi
 
+AC_DEFINE(DRI2, 1,[Enable DRI2 code])
+
 save_CFLAGS="$CFLAGS"
 CFLAGS="$XORG_CFLAGS"
 AC_CHECK_HEADER(xf86Modes.h,[XMODES=yes],[XMODES=no],[#include "xorg-server.h"])

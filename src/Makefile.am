@@ -95,8 +95,9 @@ radeon_drv_la_SOURCES = \
 	radeon_textured_video.c \
 	radeon_crtc.c radeon_output.c radeon_modes.c radeon_tv.c \
 	$(RADEON_ATOMBIOS_SOURCES) radeon_atombios.c radeon_atomwrapper.c \
-	$(RADEON_DRI_SRCS) $(RADEON_EXA_SOURCES) atombios_output.c atombios_crtc.c  \
-	drmmode_display.c radeon_bufmgr_gem.c radeon_dri_bufmgr.c
+	$(RADEON_DRI_SRCS) $(RADEON_EXA_SOURCES) atombios_output.c \
+	atombios_crtc.c  drmmode_display.c radeon_bufmgr_exa.c \
+	radeon_bufmgr_gem.c radeon_dri_bufmgr.c radeon_dri2.c
 
 if XMODES
 radeon_drv_la_SOURCES += \
@@ -145,6 +146,7 @@ EXTRA_DIST = \
 	radeon_exa_render.c \
 	radeon_exa_funcs.c \
 	radeon.h \
+	radeon_dri2.h \
 	radeon_macros.h \
 	radeon_probe.h \
 	radeon_reg.h \

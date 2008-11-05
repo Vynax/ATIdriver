@@ -77,6 +77,7 @@
 #include "dri.h"
 #include "GL/glxint.h"
 #include "xf86drm.h"
+#include "radeon_dri2.h"
 
 #ifdef DAMAGE
 #include "damage.h"
@@ -823,6 +824,7 @@ typedef struct {
     RADEONCardType    cardType;            /* Current card is a PCI card */
     struct radeon_cp  *cp;
     struct radeon_dri  *dri;
+    struct radeon_dri2 dri2;
 #ifdef USE_EXA
     Bool              accelDFS;
 #endif

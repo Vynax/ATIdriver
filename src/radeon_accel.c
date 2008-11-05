@@ -1247,7 +1247,7 @@ void RADEONInit3DEngine(ScrnInfoPtr pScrn)
 
 #ifdef XF86DRI
     if (info->directRenderingEnabled || info->drm_mode_setting) {
-	if (info->directRenderingEnabled) {
+	if (info->directRenderingEnabled && !info->dri2.enabled) {
 	    drm_radeon_sarea_t *pSAREAPriv;
 
 	    pSAREAPriv = DRIGetSAREAPrivate(pScrn->pScreen);

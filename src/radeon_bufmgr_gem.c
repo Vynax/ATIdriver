@@ -97,7 +97,6 @@ dri_gem_bo_alloc(dri_bufmgr *bufmgr, const char *name,
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bufmgr;
 	struct drm_radeon_gem_create args;
 	int ret;
-	unsigned int page_size = getpagesize();
 	dri_bo_gem *gem_bo;
 
 	gem_bo = calloc(1, sizeof(*gem_bo));
@@ -214,7 +213,6 @@ dri_gem_bo_map(dri_bo *bo, int write_enable)
 static int
 dri_gem_bo_unmap(dri_bo *buf)
 {
-	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)buf->bufmgr;
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
 
 	if (--gem_bo->map_count > 0)
@@ -228,9 +226,6 @@ dri_gem_bo_unmap(dri_bo *buf)
 static void
 dri_bufmgr_gem_destroy(dri_bufmgr *bufmgr)
 {
-	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bufmgr;
-	int i;
-
 	free(bufmgr);
 }
 
@@ -332,7 +327,6 @@ void radeon_bufmgr_gem_emit_reloc(dri_bo *buf, struct radeon_relocs_info *reloc_
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
 	uint32_t *__head = head;
 	uint32_t __count = *count_p;
-	dri_bo_gem *trav;
 	int i;
 	int index;
 	int have_reloc = -1;
@@ -562,7 +556,6 @@ dri_bufmgr *
 radeon_bufmgr_gem_init(int fd)
 {
 	dri_bufmgr_gem *bufmgr_gem;
-	int i;
 
 	bufmgr_gem = calloc(1, sizeof(*bufmgr_gem));
 	bufmgr_gem->fd = fd;
@@ -653,4 +646,21 @@ int radeon_bufmgr_gem_in_vram(dri_bo *buf)
 {
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
 	return gem_bo->in_vram;
+}
+
+int radeon_bo_gem_name_buffer(dri_bo *bo, uint32_t *name)
+{
+	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bo->bufmgr;
+	dri_bo_gem *gem_bo = (dri_bo_gem *)bo;
+    struct drm_gem_flink flink;
+    int r;
+
+    flink.handle = gem_bo->gem_handle;
+    r = ioctl(bufmgr_gem->fd, DRM_IOCTL_GEM_FLINK, &flink);
+    if (r) {
+        DBG("[drm] failed to name buffer %d\n", -errno);
+        return r;
+    }
+    *name = flink.name;
+    return 0;
 }

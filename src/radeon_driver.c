@@ -3139,6 +3139,8 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 
 	info->drmmode.create_new_fb = radeon_create_new_fb;
 	info->dri->drmFD = info->drmmode.fd;
+    info->dri2.drm_fd = info->drmmode.fd;
+    info->dri2.enabled = FALSE;
 	xfree(bus_id);
 	 
         {
@@ -3614,6 +3616,9 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 		from = X_CONFIG;
 	    }
 
+	    if (info->drm_mm)
+	      info->accelDFS = FALSE;
+
 	    /* Reserve approx. half of offscreen memory for local textures by
 	     * default, can be overridden with Option "FBTexPercent".
 	     * Round down to a whole number of texture regions.
@@ -3687,7 +3692,13 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 			info->CurrentLayout.pixel_bytes * 3 + 1023) / 1024);
 	    info->directRenderingEnabled = FALSE;
 	} else {
-	    info->directRenderingEnabled = RADEONDRIScreenInit(pScreen);
+        info->directRenderingEnabled = FALSE;
+#ifdef DRI2
+	    info->directRenderingEnabled = radeon_dri2_screen_init(pScreen);
+#endif
+        if (!info->directRenderingEnabled) {
+    	    info->directRenderingEnabled = RADEONDRIScreenInit(pScreen);
+        }
 	}
     }
 
@@ -3724,7 +3735,7 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 	}
     }
 
-    if (info->directRenderingEnabled == TRUE)
+    if (info->directRenderingEnabled == TRUE && !info->dri2.enabled)
         RADEONDRIDoMappings(pScreen);
 
 #endif
@@ -3821,12 +3832,16 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
     if (info->directRenderingEnabled) {
         xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
 		       "DRI Finishing init !\n");
+    if (!info->dri2.enabled) {
 	info->directRenderingEnabled = RADEONDRIFinishScreenInit(pScreen);
+    }
     }
     if (info->directRenderingEnabled) {
 
 	if (info->drm_mm)
+    if (!info->dri2.enabled) {
 	    radeon_update_dri_buffers(pScreen);
+    }
     
 	/* DRI final init might have changed the memory map, we need to adjust
 	 * our local image to make sure we restore them properly on mode
