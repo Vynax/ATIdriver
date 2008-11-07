@@ -238,12 +238,15 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 
 	drmmode_ConvertToKMode(crtc->scrn, &kmode, mode);
 
-
 	fb_id = drmmode->fb_id;
-	if (drmmode_crtc->rotate_fb_id)
+	if (drmmode_crtc->rotate_fb_id) {
 		fb_id = drmmode_crtc->rotate_fb_id;
- 	copy_fb_contents (drmmode, crtc->scrn, fb_id, x, y,
- 			  drmmode_crtc->mode_crtc->buffer_id);
+		x = y = 0;
+	}
+	else if (fb_id != drmmode_crtc->mode_crtc->buffer_id)
+	 	copy_fb_contents (drmmode, crtc->scrn, fb_id, x, y,
+ 				  drmmode_crtc->mode_crtc->buffer_id);
+
 	drmModeSetCrtc(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
 		       fb_id, x, y, output_ids, output_count, &kmode);
 
