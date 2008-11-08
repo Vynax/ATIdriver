@@ -3929,8 +3929,13 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
     pScrn->pScreen = pScreen;
 
     /* set the modes with desired rotation, etc. */
-    if (!xf86SetDesiredModes (pScrn))
+    if (info->drm_mode_setting) {
+      if (!drmmode_set_desired_modes(pScrn, &info->drmmode))
 	return FALSE;
+    } else {
+      if (!xf86SetDesiredModes (pScrn))
+	return FALSE;
+    }
 
     /* Provide SaveScreen & wrap BlockHandler and CloseScreen */
     /* Wrap CloseScreen */
@@ -5845,8 +5850,13 @@ Bool RADEONEnterVT(int scrnIndex, int flags)
 	for (i = 0; i < config->num_crtc; i++)
 	    radeon_crtc_modeset_ioctl(config->crtc[i], TRUE);
 
-    if (!xf86SetDesiredModes(pScrn))
+    if (info->drm_mode_setting) {
+      if (!drmmode_set_desired_modes(pScrn, &info->drmmode))
 	return FALSE;
+    } else {
+      if (!xf86SetDesiredModes(pScrn))
+	return FALSE;
+    }
 
     if (!info->drm_mode_setting) {
 	if (info->ChipFamily < CHIP_FAMILY_R600)

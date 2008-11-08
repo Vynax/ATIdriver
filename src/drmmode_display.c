@@ -35,6 +35,9 @@
 #include "radeon_drm.h"
 #include "sarea.h"
 
+/* DPMS */
+#define DPMS_SERVER
+#include <X11/extensions/dpms.h>
 
 static Bool drmmode_resize_fb(ScrnInfoPtr scrn, drmmode_ptr drmmode, int width, int height);
 
@@ -117,9 +120,17 @@ static const xf86CrtcConfigFuncsRec drmmode_xf86crtc_config_funcs = {
 };
 
 static void
-drmmode_crtc_dpms(xf86CrtcPtr drmmode_crtc, int mode)
+drmmode_crtc_dpms(xf86CrtcPtr crtc, int mode)
 {
+	xf86CrtcConfigPtr   xf86_config = XF86_CRTC_CONFIG_PTR(crtc->scrn);
+	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+	drmmode_ptr drmmode = drmmode_crtc->drmmode;
 
+	/* bonghits in the randr 1.2 - uses dpms to disable crtc - bad buzz */
+	if (mode == DPMSModeOff) {
+		drmModeSetCrtc(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
+			       0, 0, 0, NULL, 0, NULL);
+	}
 }
 
 static PixmapPtr
@@ -209,10 +220,12 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 	saved_y = crtc->y;
 	saved_rotation = crtc->rotation;
 
-	crtc->mode = *mode;
-	crtc->x = x;
-	crtc->y = y;
-	crtc->rotation = rotation;
+	if (mode) {
+		crtc->mode = *mode;
+		crtc->x = x;
+		crtc->y = y;
+		crtc->rotation = rotation;
+	}
 
 	output_ids = xcalloc(sizeof(uint32_t), xf86_config->num_output);
 	if (!output_ids) {
@@ -220,38 +233,42 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		goto done;
 	}
 
-	for (i = 0; i < xf86_config->num_output; i++) {
-		xf86OutputPtr output = xf86_config->output[i];
-		drmmode_output_private_ptr drmmode_output;
+	if (mode) {
+		for (i = 0; i < xf86_config->num_output; i++) {
+			xf86OutputPtr output = xf86_config->output[i];
+			drmmode_output_private_ptr drmmode_output;
 
-		if (output->crtc != crtc)
-			continue;
+			if (output->crtc != crtc)
+				continue;
 
-		drmmode_output = output->driver_private;
-		output_ids[output_count] = drmmode_output->mode_output->connector_id;
-		output_count++;
+			drmmode_output = output->driver_private;
+			output_ids[output_count] = drmmode_output->mode_output->connector_id;
+			output_count++;
+		}
+
+		if (!xf86CrtcRotate(crtc, mode, rotation)) {
+			goto done;
+		}
+
+		drmmode_ConvertToKMode(crtc->scrn, &kmode, mode);
+	
+		fb_id = drmmode->fb_id;
+		if (drmmode_crtc->rotate_fb_id) {
+			fb_id = drmmode_crtc->rotate_fb_id;
+			x = y = 0;
+		}
+		else if (fb_id != drmmode_crtc->mode_crtc->buffer_id)
+			copy_fb_contents (drmmode, crtc->scrn, fb_id, x, y,
+					  drmmode_crtc->mode_crtc->buffer_id);
+
+		drmModeSetCrtc(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
+			       fb_id, x, y, output_ids, output_count, &kmode);
+
+		if (crtc->scrn->pScreen)
+			xf86CrtcSetScreenSubpixelOrder(crtc->scrn->pScreen);
 	}
+		
 
-	if (!xf86CrtcRotate(crtc, mode, rotation)) {
-		goto done;
-	}
-
-	drmmode_ConvertToKMode(crtc->scrn, &kmode, mode);
-
-	fb_id = drmmode->fb_id;
-	if (drmmode_crtc->rotate_fb_id) {
-		fb_id = drmmode_crtc->rotate_fb_id;
-		x = y = 0;
-	}
-	else if (fb_id != drmmode_crtc->mode_crtc->buffer_id)
-	 	copy_fb_contents (drmmode, crtc->scrn, fb_id, x, y,
- 				  drmmode_crtc->mode_crtc->buffer_id);
-
-	drmModeSetCrtc(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
-		       fb_id, x, y, output_ids, output_count, &kmode);
-
-	if (crtc->scrn->pScreen)
-		xf86CrtcSetScreenSubpixelOrder(crtc->scrn->pScreen);
 
 
 done:
@@ -513,6 +530,12 @@ drmmode_output_destroy(xf86OutputPtr output)
 static void
 drmmode_output_dpms(xf86OutputPtr output, int mode)
 {
+	drmmode_output_private_ptr drmmode_output = output->driver_private;
+	drmModeConnectorPtr koutput = drmmode_output->mode_output;
+	drmmode_ptr drmmode = drmmode_output->drmmode;
+
+	drmModeConnectorSetProperty(drmmode->fd, koutput->connector_id,
+				    drmmode_output->dpms_enum_id, mode);
 	return;
 }
 
@@ -564,7 +587,9 @@ drmmode_output_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int num)
 	drmModeConnectorPtr koutput;
 	drmModeEncoderPtr kencoder;
 	drmmode_output_private_ptr drmmode_output;
+	drmModePropertyPtr props;
 	char name[32];
+	int i;
 
 	koutput = drmModeGetConnector(drmmode->fd, drmmode->mode_res->connectors[num]);
 	if (!koutput)
@@ -622,6 +647,18 @@ drmmode_output_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int num)
 
 	output->possible_crtcs = kencoder->possible_crtcs;
 	output->possible_clones = kencoder->possible_clones;
+
+	for (i = 0; i < koutput->count_props; i++) {
+		props = drmModeGetProperty(drmmode->fd, koutput->props[i]);
+		if (props && (props->flags && DRM_MODE_PROP_ENUM)) {
+			if (!strcmp(props->name, "DPMS")) {
+				drmmode_output->dpms_enum_id = koutput->props[i];
+				drmModeFreeProperty(props);
+				break;
+			}
+			drmModeFreeProperty(props);
+		}
+	}
 
 	return;
 }
@@ -771,4 +808,57 @@ void drmmode_adjust_frame(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int x, int y, 
 	}
 }
 
+Bool drmmode_set_desired_modes(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
+{
+	xf86CrtcConfigPtr   config = XF86_CRTC_CONFIG_PTR(pScrn);
+	int			c, o;
+
+	for (c = 0; c < config->num_crtc; c++) {
+		xf86CrtcPtr	crtc = config->crtc[c];
+		drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+		xf86OutputPtr	output = NULL;
+		int		o;
+		
+		/* Skip disabled CRTCs */
+		if (!crtc->enabled) {
+			drmModeSetCrtc(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
+				       0, 0, 0, NULL, 0, NULL);
+			continue;
+		}
+
+		if (config->output[config->compat_output]->crtc == crtc)
+			output = config->output[config->compat_output];
+		else
+		{
+			for (o = 0; o < config->num_output; o++)
+				if (config->output[o]->crtc == crtc)
+				{
+					output = config->output[o];
+					break;
+				}
+		}
+		/* paranoia */
+		if (!output)
+			continue;
+
+		/* Mark that we'll need to re-set the mode for sure */
+		memset(&crtc->mode, 0, sizeof(crtc->mode));
+		if (!crtc->desiredMode.CrtcHDisplay)
+		{
+			DisplayModePtr  mode = xf86OutputFindClosestMode (output, pScrn->currentMode);
+			
+			if (!mode)
+				return FALSE;
+			crtc->desiredMode = *mode;
+			crtc->desiredRotation = RR_Rotate_0;
+			crtc->desiredX = 0;
+			crtc->desiredY = 0;
+		}
+
+		if (!crtc->funcs->set_mode_major(crtc, &crtc->desiredMode, crtc->desiredRotation,
+						 crtc->desiredX, crtc->desiredY))
+			return FALSE;
+	}
+	return TRUE;
+}
 #endif
