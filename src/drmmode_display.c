@@ -128,8 +128,8 @@ drmmode_crtc_dpms(xf86CrtcPtr crtc, int mode)
 
 	/* bonghits in the randr 1.2 - uses dpms to disable crtc - bad buzz */
 	if (mode == DPMSModeOff) {
-		drmModeSetCrtc(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
-			       0, 0, 0, NULL, 0, NULL);
+//		drmModeSetCrtc(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
+//			       0, 0, 0, NULL, 0, NULL);
 	}
 }
 
