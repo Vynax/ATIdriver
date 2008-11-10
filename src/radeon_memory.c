@@ -330,12 +330,12 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     else
     	info->dri->textureSize = remain_size_bytes / 2;
 
-    ErrorF("texture size is %dK, exa is %dK\n", info->dri->textureSize / 1024, (remain_size_bytes - info->dri->textureSize)/1024);
+    remain_size_bytes -= info->dri->textureSize;
 
-    fb_size_bytes = screen_size + (remain_size_bytes - info->dri->textureSize);
+    ErrorF("texture size is %dK, exa is %dK\n", info->dri->textureSize / 1024, remain_size_bytes/1024);
 
-    if (info->new_cs)
-        fb_size_bytes = screen_size;
+    fb_size_bytes = screen_size;
+
     ErrorF("fb size is %dK %dK\n", fb_size_bytes / 1024, total_size_bytes / 1024);
 
     info->mm.front_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, fb_size_bytes, 0, 1, "Front Buffer + EXA", 1);
@@ -349,16 +349,6 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     }
     info->dri->frontPitch = pScrn->displayWidth;
 
-    if (!info->new_cs) {
-        info->accel_state->exa->memoryBase = info->mm.front_buffer->map;
-        info->accel_state->exa->offScreenBase = screen_size;
-        info->accel_state->exa->memorySize = fb_size_bytes;
-        xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-		   "Will use %ld kb for X Server offscreen at offset 0x%08lx\n",
-		   (info->accel_state->exa->memorySize - info->accel_state->exa->offScreenBase) /
-		   1024, info->accel_state->exa->offScreenBase);
-    }
-
     if (info->directRenderingEnabled) {
 	info->mm.texture_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, info->dri->textureSize, 0, 1, "Texture Buffer", 1);
 	if (!info->mm.texture_buffer) {
@@ -370,7 +360,14 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     if (info->drm_mode_setting) {
 	drmmode_set_fb(pScrn, &info->drmmode, pScrn->virtualX, RADEON_ALIGN(pScrn->virtualY, 16), stride, info->mm.front_buffer->kernel_bo_handle);
     }
-    radeon_bufmgr_gem_set_vram_limit(info->bufmgr, remain_size_bytes / 2);
+
+    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Front buffer size: %dK at 0x%08x\n", info->mm.front_buffer->size/1024, info->mm.front_buffer->offset);
+    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Back buffer size:  %dK at 0x%08x\n", info->mm.back_buffer->size/1024, info->mm.back_buffer->offset);
+    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Depth buffer size: %dK at 0x%08x\n", info->mm.depth_buffer->size/1024, info->mm.depth_buffer->offset);
+    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Texture size:      %dK at 0x%08x\n", info->mm.texture_buffer->size/1024, info->mm.texture_buffer->offset);
+    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Remaining VRAM size (used for pixmaps): %dK\n", remain_size_bytes/1024);
+
+    radeon_bufmgr_gem_set_limit(info->bufmgr, RADEON_GEM_DOMAIN_VRAM, remain_size_bytes);
     return TRUE;
 }
 
@@ -390,6 +387,7 @@ Bool radeon_setup_gart_mem(ScreenPtr pScreen)
     }
 
     radeon_bind_memory(pScrn, info->mm.gart_texture_buffer);
+
     return TRUE;
 }
 

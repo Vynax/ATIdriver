@@ -3703,6 +3703,8 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 	info->bufmgr = radeon_bufmgr_gem_init(info->dri->drmFD);
 	drmmode_set_bufmgr(pScrn, &info->drmmode, info->bufmgr);
 	//radeon_bufmgr_gem_enable_reuse(info->bufmgr);
+	radeon_bufmgr_gem_set_limit(info->bufmgr, RADEON_GEM_DOMAIN_GTT, info->mm.gart_size - info->dri->gartTexMapSize);
+    
 	radeon_setup_kernel_mem(pScreen);
 	front_ptr = info->mm.front_buffer->map;
 	pScrn->fbOffset = info->mm.front_buffer->offset;

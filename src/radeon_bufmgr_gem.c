@@ -82,7 +82,7 @@ typedef struct _dri_bufmgr_gem {
 	dri_bufmgr bufmgr;
 	struct radeon_bufmgr radeon_bufmgr;
 	int fd;
-	uint32_t vram_limit;
+	uint32_t vram_limit, gart_limit;
 	uint32_t vram_write_used, gart_write_used;
 	uint32_t read_used;
 
@@ -440,9 +440,16 @@ static int radeon_gem_bufmgr_check_aperture_space(dri_bo *buf, uint32_t read_dom
 
 	if (bufmgr_gem->vram_write_used > bufmgr_gem->vram_limit) {
 		bufmgr_gem->vram_write_used = 0;
+		bufmgr_gem->read_used = 0;
 		return -1;
 	}
 
+	if (bufmgr_gem->read_used > bufmgr_gem->gart_limit) {
+		bufmgr_gem->vram_write_used = 0;
+		bufmgr_gem->read_used = 0;
+		return -1;
+	    }
+	    
 	gem_bo->space_accounted = 1;
 
 	return 0;
@@ -505,7 +512,6 @@ void radeon_gem_bufmgr_post_submit(dri_bufmgr *bufmgr, struct radeon_relocs_info
 		}
 	}
 
-//	bufmgr_gem->reloc_head = NULL;
 	bufmgr_gem->read_used = 0;
 	bufmgr_gem->vram_write_used = 0;
 	
@@ -529,9 +535,13 @@ int radeon_bufmgr_gem_has_references(dri_bo *buf)
 	return gem_bo->touched;
 }
 
-void radeon_bufmgr_gem_set_vram_limit(dri_bufmgr *bufmgr, uint32_t vram_limit)
+void radeon_bufmgr_gem_set_limit(dri_bufmgr *bufmgr, uint32_t domain, uint32_t limit)
 {
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bufmgr;
 
-	bufmgr_gem->vram_limit = vram_limit;
+	if (domain == RADEON_GEM_DOMAIN_VRAM)
+	    bufmgr_gem->vram_limit = limit;
+	else
+	    bufmgr_gem->gart_limit = limit;
+
 }
