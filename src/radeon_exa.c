@@ -451,11 +451,8 @@ static Bool RADEONEXAModifyPixmapHeader(PixmapPtr pPixmap, int width, int height
     if (pPixData == info->mm.front_buffer->map) {
 	driver_priv->flags |= RADEON_PIXMAP_IS_FRONTBUFFER;
 
-	if (info->new_cs)
-	  driver_priv->bo = radeon_bo_gem_create_from_name(info->bufmgr, "front",
-							   radeon_name_buffer(pScrn, info->mm.front_buffer));
-	else
-	  driver_priv->bo = radeon_bufmgr_exa_create_bo(info->bufmgr, info->mm.front_buffer);
+	driver_priv->bo = radeon_bo_gem_create_from_name(info->bufmgr, "front",
+							 radeon_name_buffer(pScrn, info->mm.front_buffer));
 
 	miModifyPixmapHeader(pPixmap, width, height, depth,
                              bitsPerPixel, devKind, NULL);
