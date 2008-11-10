@@ -3359,6 +3359,9 @@ static void RADEONBlockHandler(int i, pointer blockData,
 
 #ifdef USE_EXA
     info->accel_state->engineMode = EXA_ENGINEMODE_UNKNOWN;
+    if (info->new_cs) {
+        RADEONCPReleaseIndirect(pScrn);
+    }
 #endif
 }
 

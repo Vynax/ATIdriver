@@ -137,6 +137,7 @@ radeon_dri2_copy_region(DrawablePtr drawable,
 {
     struct dri2_buffer_priv *private = src_buffer->driverPrivate;
     ScreenPtr pScreen = drawable->pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     PixmapPtr pixmap = private->pixmap;
     RegionPtr copy_clip;
     GCPtr gc;
@@ -149,6 +150,7 @@ radeon_dri2_copy_region(DrawablePtr drawable,
     (*gc->ops->CopyArea)(&pixmap->drawable, drawable, gc,
                          0, 0, drawable->width, drawable->height, 0, 0);
     FreeScratchGC(gc);
+    RADEONCPReleaseIndirect(pScrn);
 }
 
 Bool
