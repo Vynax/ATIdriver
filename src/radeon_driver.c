@@ -3697,7 +3697,9 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 	} else {
         info->directRenderingEnabled = FALSE;
 #ifdef DRI2
-	    info->directRenderingEnabled = radeon_dri2_screen_init(pScreen);
+        if (info->drm_mm) {
+            info->directRenderingEnabled = radeon_dri2_screen_init(pScreen);
+        }
 #endif
         if (!info->directRenderingEnabled) {
     	    info->directRenderingEnabled = RADEONDRIScreenInit(pScreen);

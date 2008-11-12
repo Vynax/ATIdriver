@@ -99,7 +99,6 @@ radeon_dri2_create_buffers(DrawablePtr drawable,
             xfree(privates);
             return NULL;
         }
-        fprintf(stderr, "flinkname: %d\n", buffers[i].name);
         buffers[i].attachment = attachments[i];
         buffers[i].pitch = pixmap->devKind;
         buffers[i].cpp = pixmap->drawable.bitsPerPixel / 8;
