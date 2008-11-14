@@ -96,8 +96,8 @@ radeon_drv_la_SOURCES = \
 	radeon_crtc.c radeon_output.c radeon_modes.c radeon_tv.c \
 	$(RADEON_ATOMBIOS_SOURCES) radeon_atombios.c radeon_atomwrapper.c \
 	$(RADEON_DRI_SRCS) $(RADEON_EXA_SOURCES) atombios_output.c \
-	atombios_crtc.c  drmmode_display.c radeon_bufmgr_exa.c \
-	radeon_bufmgr_gem.c radeon_dri_bufmgr.c radeon_dri2.c
+	atombios_crtc.c  drmmode_display.c radeon_bufmgr_gem.c \
+	radeon_dri_bufmgr.c radeon_dri2.c
 
 if XMODES
 radeon_drv_la_SOURCES += \
