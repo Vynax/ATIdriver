@@ -160,7 +160,7 @@ FUNC_NAME(RADEONPrepareSolid)(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
 	    RADEONCPFlushIndirect(pScrn, 1);
 	    retry_count++;
 	    if (retry_count == 2)
-	        RADEON_FALLBACK(("Not enough Video RAM\n"));
+	        RADEON_FALLBACK(("Not enough Video RAM for dst\n"));
 	    goto retry;
 	}
     }
@@ -298,7 +298,7 @@ FUNC_NAME(RADEONPrepareCopy)(PixmapPtr pSrc,   PixmapPtr pDst,
 		RADEONCPFlushIndirect(pScrn, 1);
 		retry_count++;
 		if (retry_count == 2)
-		    RADEON_FALLBACK(("Not enough Video RAM\n"));
+		    RADEON_FALLBACK(("Not enough Video RAM for src\n"));
 		goto retry;
 	    }
 	    info->state_2d.src_bo = driver_priv->bo;
@@ -310,7 +310,7 @@ FUNC_NAME(RADEONPrepareCopy)(PixmapPtr pSrc,   PixmapPtr pDst,
 		    RADEONCPFlushIndirect(pScrn, 1);
 		    retry_count++;
 		    if (retry_count == 2)
-		        RADEON_FALLBACK(("Not enough Video RAM\n"));
+		        RADEON_FALLBACK(("Not enough Video RAM for dst\n"));
 		    goto retry;
 		}
 		info->state_2d.dst_bo = driver_priv->bo;

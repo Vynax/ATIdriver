@@ -1367,7 +1367,7 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 	    RADEONCPFlushIndirect(pScrn, 1);
 	    retry_count++;
 	    if (retry_count == 2)
-	        RADEON_FALLBACK(("Not enough Video RAM\n"));
+	        RADEON_FALLBACK(("Not enough Video RAM for src\n"));
 	    goto retry;
 	}
 
@@ -1378,7 +1378,7 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 		RADEONCPFlushIndirect(pScrn, 1);
 		retry_count++;
 		if (retry_count == 2)
-		    RADEON_FALLBACK(("Not enough Video RAM\n"));
+		    RADEON_FALLBACK(("Not enough Video RAM for mask\n"));
 		goto retry;
 	    }
 	}
@@ -1390,7 +1390,7 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 		RADEONCPFlushIndirect(pScrn, 1);
 		retry_count++;
 		if (retry_count == 2)
-		    RADEON_FALLBACK(("Not enough Video RAM\n"));
+		    RADEON_FALLBACK(("Not enough Video RAM for dst\n"));
 		goto retry;
 	    }
 	}
