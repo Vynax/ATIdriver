@@ -1057,6 +1057,10 @@ static Bool R300CheckCompositeTexture(PicturePtr pPict,
 				      int unit,
 				      Bool is_r500)
 {
+    ScreenPtr pScreen = pDstPict->pDrawable->pScreen;
+    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
+    RADEONInfoPtr info = RADEONPTR(pScrn);
+
     int w = pPict->pDrawable->width;
     int h = pPict->pDrawable->height;
     int i;
@@ -1082,8 +1086,17 @@ static Bool R300CheckCompositeTexture(PicturePtr pPict,
 	RADEON_FALLBACK(("Unsupported picture format 0x%x\n",
 			 (int)pPict->format));
 
-    if (!RADEONCheckTexturePOT(pPict, unit == 0))
+    if (!RADEONCheckTexturePOT(pPict, unit == 0)) {
+	if (info->new_cs) {
+    		struct radeon_exa_pixmap_priv *driver_priv;
+		PixmapPtr pPix;
+
+    		pPix = RADEONGetDrawablePixmap(pPict->pDrawable);
+		driver_priv = exaGetPixmapDriverPrivate(pPix);
+		radeon_bufmgr_gem_force_gtt(driver_priv->bo);
+	}
 	return FALSE;
+    }
 
     if (pPict->filter != PictFilterNearest &&
 	pPict->filter != PictFilterBilinear)

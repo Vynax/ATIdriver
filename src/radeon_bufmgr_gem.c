@@ -72,6 +72,7 @@ typedef struct _dri_bo_gem {
 	const char *name;
 	struct _dri_bo_gem *next;
 	int in_vram; /* have we migrated this bo to VRAM ever */
+	int force_gtt;
 	int pinned;
 	int touched;
 	int space_accounted;
@@ -238,15 +239,27 @@ void radeon_bufmgr_gem_wait_rendering(dri_bo *buf)
 {
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)buf->bufmgr;
 	struct drm_radeon_gem_wait_rendering args;
+	struct drm_radeon_gem_set_domain sd_args;
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
 	int ret;
 
-	args.handle = gem_bo->gem_handle;
+	/* do a set domain */
+	if (gem_bo->force_gtt) {
+		sd_args.handle = gem_bo->gem_handle;
+		sd_args.read_domains = RADEON_GEM_DOMAIN_GTT;
+		sd_args.write_domain = 0;
 
-	do {
-	ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_WAIT_RENDERING,
-				  &args, sizeof(args));
-	} while (ret == -EAGAIN);
+		ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_SET_DOMAIN,
+					  &sd_args, sizeof(sd_args));
+
+	} else {
+		args.handle = gem_bo->gem_handle;
+
+		do {
+		ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_WAIT_RENDERING,
+					  &args, sizeof(args));
+		} while (ret == -EAGAIN);
+	}
 	return;
 }
 
@@ -325,6 +338,9 @@ void radeon_bufmgr_gem_emit_reloc(dri_bo *buf, struct radeon_relocs_info *reloc_
 			break;
 		}
 	}
+
+	if (gem_bo->force_gtt && (read_domains & RADEON_GEM_DOMAIN_VRAM))
+		read_domains = RADEON_GEM_DOMAIN_GTT;
 
 	if (have_reloc != -1) {
 		uint32_t old_write, old_read;
@@ -544,4 +560,11 @@ void radeon_bufmgr_gem_set_limit(dri_bufmgr *bufmgr, uint32_t domain, uint32_t l
 	else
 	    bufmgr_gem->gart_limit = limit;
 
+}
+
+void radeon_bufmgr_gem_force_gtt(dri_bo *buf)
+{
+	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
+
+	gem_bo->force_gtt = 1;
 }

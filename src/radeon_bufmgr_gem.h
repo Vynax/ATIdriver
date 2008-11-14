@@ -11,5 +11,8 @@ void radeon_bufmgr_pin(dri_bo *buf);
 void radeon_bufmgr_unpin(dri_bo *buf);
 uint32_t radeon_bufmgr_get_handle(dri_bo *buf);
 int radeon_bufmgr_gem_has_references(dri_bo *buf);
+int radeon_bufmgr_gem_force_gtt(dri_bo *buf);
 void radeon_bufmgr_gem_set_limit(dri_bufmgr *bufmgr, uint32_t domain, uint32_t limit);
+
+
 #endif
