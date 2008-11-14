@@ -75,8 +75,7 @@ typedef struct _dri_bo_gem {
 	int force_gtt;
 	int pinned;
 	int touched;
-	int space_accounted;
-
+	uint32_t space_accounted;
 } dri_bo_gem;
 
 typedef struct _dri_bufmgr_gem {
@@ -441,32 +440,63 @@ static int radeon_gem_bufmgr_check_aperture_space(dri_bo *buf, uint32_t read_dom
 {
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)buf->bufmgr;
  	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
+	int old_accounted = 0;
 
 	if (gem_bo->pinned)
 		return 0;
 
-	if (gem_bo->space_accounted == 1)
+	if (write_domain && (write_domain == gem_bo->space_accounted))
 		return 0;
 
-	if (write_domain == RADEON_GEM_DOMAIN_VRAM) {
-		bufmgr_gem->vram_write_used += buf->size;
-	} else {
-		bufmgr_gem->read_used += buf->size;
-	}
+	if (read_domains && ((read_domains << 16) == gem_bo->space_accounted))
+		return 0;
 
+	old_accounted = gem_bo->space_accounted;
+
+	if (gem_bo->space_accounted == 0) {
+		gem_bo->space_accounted = (read_domains << 16) | write_domain;
+		if (write_domain == RADEON_GEM_DOMAIN_VRAM) {
+			bufmgr_gem->vram_write_used += buf->size;
+		} else {
+			bufmgr_gem->read_used += buf->size;
+		}
+	} else {
+		uint16_t old_read, old_write;
+
+		old_read = gem_bo->space_accounted >> 16;
+		old_write = gem_bo->space_accounted & 0xffff;
+
+		if (write_domain && (old_read & write_domain)) {
+			gem_bo->space_accounted = write_domain;
+			/* moving from read to a write domain */
+			if (write_domain == RADEON_GEM_DOMAIN_VRAM) {
+				bufmgr_gem->read_used -= buf->size;
+				bufmgr_gem->vram_write_used += buf->size;
+			}
+		} else if (read_domains & old_write) {
+			gem_bo->space_accounted &= 0xffff;
+		} else {
+			/* rewrite the domains */
+			if (write_domain != old_write)
+				ErrorF("WRITE DOMAIN RELOC FAILURE 0x%x %d %d\n", gem_bo->gem_handle, write_domain, old_write);
+			if (read_domains != old_read)
+				ErrorF("READ DOMAIN RELOC FAILURE 0x%x %d %d\n", gem_bo->gem_handle, read_domains, old_read);
+		}
+	}
+	
 	if (bufmgr_gem->vram_write_used > bufmgr_gem->vram_limit) {
 		bufmgr_gem->vram_write_used = 0;
 		bufmgr_gem->read_used = 0;
+		gem_bo->space_accounted = old_accounted;
 		return -1;
 	}
 
 	if (bufmgr_gem->read_used > bufmgr_gem->gart_limit) {
 		bufmgr_gem->vram_write_used = 0;
 		bufmgr_gem->read_used = 0;
+		gem_bo->space_accounted = old_accounted;
 		return -1;
-	    }
-	    
-	gem_bo->space_accounted = 1;
+	}
 
 	return 0;
 }
