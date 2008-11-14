@@ -648,6 +648,7 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     struct drm_radeon_cs2 args;
     struct drm_radeon_cs_chunk chunk[2];
     uint64_t chunk_array[2];
+    int retry = 0;
     int ret;
     RING_LOCALS;
 
@@ -677,12 +678,16 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     args.num_chunks = 2;
     args.chunks = (uint64_t)(unsigned long)chunk_array;
 
-    ret = drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_CS2,
-			      &args, sizeof(args));
-
+    do {
+	ret = drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_CS2,
+				  &args, sizeof(args));
+	if (ret)
+	    ErrorF("DRM Command submission failure %d\n", ret);
+	retry++;
+    } while (ret == -EAGAIN && retry < 1000);
     if (ret) {
-      FatalError("DRM Command submission failure %d\n", ret);
-      return;
+	FatalError("DRM Command submission failure %d\n", ret);
+	return;
     }
 
 
