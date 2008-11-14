@@ -263,7 +263,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     int stride = pScrn->displayWidth * cpp;
     int total_size_bytes = 0, remain_size_bytes;
     int fb_size_bytes;
-
+    int pagesize = 4096;
     
     screen_size = RADEON_ALIGN(pScrn->virtualY, 16) * stride;
 
@@ -273,6 +273,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 	int cursor_size = 64 * 4 * 64;
 	int c;
 
+    	cursor_size = RADEON_ALIGN(cursor_size, pagesize);
 	for (c = 0; c < xf86_config->num_crtc; c++) {
 	    /* cursor objects */
 	    info->mm.cursor[c] = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, cursor_size, 0, 1, "Cursor", 1);
@@ -297,6 +298,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 	}
     }
 
+    screen_size = RADEON_ALIGN(screen_size, pagesize);
     /* keep area front front buffer - but don't allocate it yet */
     total_size_bytes += screen_size;
 
@@ -313,6 +315,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 	{
 	    int depthCpp = (info->dri->depthBits - 8) / 4;
 	    int depth_size = RADEON_ALIGN(pScrn->virtualY, 16) * info->dri->depthPitch * depthCpp;
+    	    depth_size = RADEON_ALIGN(depth_size, pagesize);
 	    info->mm.depth_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, depth_size, 0, 1, "Depth Buffer", 1);
 	    if (!info->mm.depth_buffer) {
 		return FALSE;
@@ -329,6 +332,8 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     	info->dri->textureSize = (remain_size_bytes / 100) * info->dri->textureSize;
     else
     	info->dri->textureSize = remain_size_bytes / 2;
+
+    info->dri->textureSize = RADEON_ALIGN(info->dri->textureSize, pagesize);
 
     remain_size_bytes -= info->dri->textureSize;
 
