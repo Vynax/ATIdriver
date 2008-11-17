@@ -372,6 +372,9 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Texture size:      %dK at 0x%08x\n", info->mm.texture_buffer->size/1024, info->mm.texture_buffer->offset);
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Remaining VRAM size (used for pixmaps): %dK\n", remain_size_bytes/1024);
 
+    /* set the emit limit at 90% of VRAM */
+    remain_size_bytes = (remain_size_bytes * 90) / 100;
+
     radeon_bufmgr_gem_set_limit(info->bufmgr, RADEON_GEM_DOMAIN_VRAM, remain_size_bytes);
     return TRUE;
 }
