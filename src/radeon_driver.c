@@ -67,7 +67,7 @@
 
 #include <string.h>
 #include <stdio.h>
-
+#include <errno.h>
 				/* Driver data structures */
 #include "radeon.h"
 #include "radeon_reg.h"
@@ -5836,6 +5836,13 @@ Bool RADEONEnterVT(int scrnIndex, int flags)
 	if (IS_R300_VARIANT || IS_RV100_VARIANT)
 	    RADEONForceSomeClocks(pScrn);
 
+    } else {
+	int ret;
+	if (info->drm_mode_setting) {
+		ret = ioctl(info->dri->drmFD, DRM_IOCTL_SET_MASTER, NULL);
+		if (ret == -EINVAL)
+			ErrorF("Unable to retrieve master\n");
+	}
     }
 
     if (info->drm_mm) {
@@ -5964,6 +5971,11 @@ void RADEONLeaveVT(int scrnIndex, int flags)
 		i = list[i].next;
 	    } while (i != 0);
 	}
+
+	if (info->drm_mode_setting)
+		ioctl(info->dri->drmFD, DRM_IOCTL_DROP_MASTER, NULL);
+		
+	
     }
 #endif
 
