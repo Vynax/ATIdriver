@@ -373,7 +373,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Remaining VRAM size (used for pixmaps): %dK\n", remain_size_bytes/1024);
 
     /* set the emit limit at 90% of VRAM */
-    remain_size_bytes = (remain_size_bytes * 90) / 100;
+    remain_size_bytes = (remain_size_bytes / 10) * 9;
 
     radeon_bufmgr_gem_set_limit(info->bufmgr, RADEON_GEM_DOMAIN_VRAM, remain_size_bytes);
     return TRUE;
