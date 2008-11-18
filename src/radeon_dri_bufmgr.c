@@ -155,7 +155,7 @@ dri_bufmgr_set_debug(dri_bufmgr *bufmgr, int enable_debug)
 int
 dri_bufmgr_check_aperture_space(struct radeon_space_check *bos, int num_bo)
 {
-  if (num_bo)
+  if (num_bo == 0)
     return BUFMGR_SPACE_OK;
 
   return bos[0].buf->bufmgr->check_aperture_space(bos, num_bo);
