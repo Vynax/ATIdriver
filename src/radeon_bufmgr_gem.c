@@ -507,18 +507,16 @@ static int radeon_gem_bufmgr_check_aperture_space(struct radeon_space_check *bos
 	/* check sizes - operation first */
 	if ((this_op_read > bufmgr_gem->gart_limit) ||
 	    (this_op_write > bufmgr_gem->vram_limit)) {
-		bufmgr_gem->vram_write_used = 0;
-		bufmgr_gem->read_used = 0;
 		return BUFMGR_SPACE_OP_TO_BIG;
 	}
 
 	if (((bufmgr_gem->vram_write_used + this_op_write) > bufmgr_gem->vram_limit) ||
 	    ((bufmgr_gem->read_used + this_op_read) > bufmgr_gem->gart_limit)) {
-		bufmgr_gem->vram_write_used = 0;
-		bufmgr_gem->read_used = 0;
 		return BUFMGR_SPACE_FLUSH;
 	}
 
+	bufmgr_gem->vram_write_used += this_op_write;
+	bufmgr_gem->read_used += this_op_read;
 	/* commit */
 	for (i = 0; i < num_bo; i++) {
 		buf = bos[i].buf;
@@ -564,12 +562,18 @@ radeon_bufmgr_gem_init(int fd)
 }
 
 
-void radeon_gem_bufmgr_post_submit(dri_bufmgr *bufmgr, struct radeon_relocs_info *reloc_info)
+void radeon_gem_bufmgr_post_submit(dri_bufmgr *bufmgr, struct radeon_relocs_info *reloc_info, int error)
 {
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bufmgr;
 	struct _dri_bo_gem *trav, *prev;
 	int i;
 	
+	if (error) {
+		ErrorF("bufmgr: last submission : r:%d vs g:%d w:%d vs v:%d\n",
+		       bufmgr_gem->read_used, bufmgr_gem->gart_limit, 
+		       bufmgr_gem->vram_write_used, bufmgr_gem->vram_limit);
+	}
+
 	if (!bufmgr_gem->bo_list)
 		return;
 

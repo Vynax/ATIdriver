@@ -92,6 +92,7 @@
 
 				/* X and server generic header files */
 #include "xf86.h"
+#include "radeon_bufmgr_gem.h"
 
 static void R600EngineReset(ScrnInfoPtr pScrn);
 
@@ -690,13 +691,11 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     do {
 	ret = drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_CS2,
 				  &args, sizeof(args));
-	if (ret)
-	    ErrorF("DRM Command submission failure %d\n", ret);
 	retry++;
     } while (ret == -EAGAIN && retry < 1000);
     if (ret) {
-	FatalError("DRM Command submission failure %d\n", ret);
-	return;
+        /* submit failed */
+        ErrorF("RADEON DRM CS failure - corruptions/glitches may occur %d\n", ret);
     }
 
 
@@ -705,7 +704,7 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     info->cp->indirectBuffer->total -= RADEON_IB_RESERVE;
 
     if (info->bufmgr)
-      radeon_gem_bufmgr_post_submit(info->bufmgr, &info->cp->relocs);
+      radeon_gem_bufmgr_post_submit(info->bufmgr, &info->cp->relocs, ret);
     
     info->cp->relocs.num_reloc = 0;
     /* copy some state into the buffer now - we need to add 2D state to each
