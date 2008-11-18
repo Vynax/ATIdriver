@@ -45,7 +45,9 @@ typedef struct _dri_fence dri_fence;
 #define RADEON_RELOC_SIZE 4
 struct radeon_relocs_info {
     uint32_t *buf;
+    dri_bo **bo_list;
     int size;
+    int max_bo;
     int num_reloc;
 };
 

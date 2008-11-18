@@ -626,12 +626,21 @@ drmBufPtr RADEONCSGetBuffer(ScrnInfoPtr pScrn)
 
     info->cp->relocs.size = getpagesize();
     info->cp->relocs.num_reloc = 0;
+    info->cp->relocs.max_bo = info->cp->relocs.size / RADEON_RELOC_SIZE;
     info->cp->relocs.buf = xcalloc(1, info->cp->relocs.size);
     if (!info->cp->relocs.buf)
         return NULL;
+
+    info->cp->relocs.bo_list = xcalloc(info->cp->relocs.max_bo, sizeof(dri_bo *));
+    if (!info->cp->relocs.bo_list) {
+	xfree(info->cp->relocs.buf);
+	return NULL;
+    }
+
     info->cp->ib_gem_fake.address = xcalloc(1, RADEON_BUFFER_SIZE);
     if (!info->cp->ib_gem_fake.address) {
         xfree(info->cp->relocs.buf);
+        xfree(info->cp->relocs.bo_list);
 	return NULL;
     }
 
@@ -757,6 +766,7 @@ void RADEONCSReleaseIndirect(ScrnInfoPtr pScrn)
     if (!info->cp->indirectBuffer) return;
     RADEONCSFlushIndirect(pScrn, 0);
     xfree(info->cp->relocs.buf);
+    xfree(info->cp->relocs.bo_list);
     info->cp->relocs.buf = 0;
     info->cp->relocs.size = 0;
     info->cp->relocs.num_reloc = 0;

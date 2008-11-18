@@ -371,12 +371,15 @@ void radeon_bufmgr_gem_emit_reloc(dri_bo *buf, struct radeon_relocs_info *reloc_
 			reloc_info->buf = xrealloc(reloc_info->buf, reloc_info->size);
 			if (!reloc_info->buf)
 				FatalError("failed to increase reloc buffer size\n");
+			reloc_info->max_bo = reloc_info->size / RADEON_RELOC_SIZE;
+			reloc_info->bo_list = xrealloc(reloc_info->bo_list, reloc_info->max_bo * (sizeof(dri_bo *)));
 		}
 
 		dri_bo_reference(buf);
 		gem_bo->touched = 1;
 
 		index = reloc_info->num_reloc * 4;
+		reloc_info->bo_list[index/4] = buf;
 		reloc_info->buf[index] = gem_bo->gem_handle;
 		reloc_info->buf[index + 1] = read_domains;
 		reloc_info->buf[index + 2] = write_domain;
@@ -546,16 +549,10 @@ void radeon_gem_bufmgr_post_submit(dri_bufmgr *bufmgr, struct radeon_relocs_info
 		return;
 
 	for (i = 0; i < reloc_info->num_reloc; i++) {
-		trav = bufmgr_gem->bo_list;
-		while (trav) {
-			prev = trav;
-			trav = trav->next;
-			
-			if (prev->gem_handle == reloc_info->buf[i * 4]) {
-				prev->space_accounted = 0;
-				dri_bo_unreference(&prev->bo);
-			}
-		}
+		trav = (dri_bo_gem *)reloc_info->bo_list[i];
+
+		trav->space_accounted = 0;
+		dri_bo_unreference(&trav->bo);
 	}
 
 	bufmgr_gem->read_used = 0;
