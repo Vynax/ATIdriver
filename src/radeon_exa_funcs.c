@@ -139,6 +139,8 @@ FUNC_NAME(RADEONPrepareSolid)(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
     struct radeon_exa_pixmap_priv *driver_priv;
     int ret;
     int retry_count = 0;
+    struct radeon_space_check bos[1];
+    int i;
     ACCEL_PREAMBLE();
 
     TRACE;
@@ -151,16 +153,25 @@ FUNC_NAME(RADEONPrepareSolid)(PixmapPtr pPix, int alu, Pixel pm, Pixel fg)
     if (!RADEONGetPixmapOffsetPitch(pPix, &dst_pitch_offset))
         RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch failed\n"));
 
-
-    if (info->new_cs) {
  retry:
-        driver_priv = exaGetPixmapDriverPrivate(pPix);      
-	ret = dri_bufmgr_check_aperture_space(driver_priv->bo, 0, RADEON_GEM_DOMAIN_VRAM);
-	if (ret) {
+    if (info->new_cs) {
+      
+	i = 0;
+	driver_priv = exaGetPixmapDriverPrivate(pPix);
+	bos[i].buf = driver_priv->bo;
+	bos[i].read_domains = 0;
+	bos[i].write_domain = RADEON_GEM_DOMAIN_VRAM;;
+	i++;
+
+	ret = dri_bufmgr_check_aperture_space(bos, i);
+	if (ret == BUFMGR_SPACE_OP_TO_BIG) {
+	    RADEON_FALLBACK(("Not enough RAM to hw accel composite operation\n"));
+	}
+	if (ret == BUFMGR_SPACE_FLUSH) {
 	    RADEONCPFlushIndirect(pScrn, 1);
 	    retry_count++;
 	    if (retry_count == 2)
-	        RADEON_FALLBACK(("Not enough Video RAM for dst\n"));
+	        RADEON_FALLBACK(("Not enough Video RAM for src\n"));
 	    goto retry;
 	}
     }
@@ -274,7 +285,42 @@ FUNC_NAME(RADEONPrepareCopy)(PixmapPtr pSrc,   PixmapPtr pDst,
     struct radeon_exa_pixmap_priv *driver_priv;
     int ret;
     int retry_count = 0;
+    struct radeon_space_check bos[2];
+    int i;
     TRACE;
+
+retry:
+    if (info->new_cs) {
+      
+	i = 0;
+	driver_priv = exaGetPixmapDriverPrivate(pSrc);
+	info->state_2d.src_bo = driver_priv->bo;
+	bos[i].buf = driver_priv->bo;
+	bos[i].read_domains = RADEON_GEM_DOMAIN_GTT | RADEON_GEM_DOMAIN_VRAM;
+	bos[i].write_domain = 0;
+	i++;
+
+
+	driver_priv = exaGetPixmapDriverPrivate(pDst);
+	info->state_2d.dst_bo = driver_priv->bo;
+	bos[i].buf = driver_priv->bo;
+	bos[i].read_domains = 0;
+	bos[i].write_domain = RADEON_GEM_DOMAIN_VRAM;;
+	i++;
+
+	ret = dri_bufmgr_check_aperture_space(bos, i);
+	if (ret == BUFMGR_SPACE_OP_TO_BIG) {
+	    RADEON_FALLBACK(("Not enough RAM to hw accel composite operation\n"));
+	}
+	if (ret == BUFMGR_SPACE_FLUSH) {
+	    RADEONCPFlushIndirect(pScrn, 1);
+	    retry_count++;
+	    if (retry_count == 2)
+	        RADEON_FALLBACK(("Not enough Video RAM for src\n"));
+	    goto retry;
+	}
+    }
+
 
     info->accel_state->xdir = xdir;
     info->accel_state->ydir = ydir;
@@ -288,35 +334,6 @@ FUNC_NAME(RADEONPrepareCopy)(PixmapPtr pSrc,   PixmapPtr pDst,
         RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch source failed\n"));
     if (!RADEONGetPixmapOffsetPitch(pDst, &dst_pitch_offset))
         RADEON_FALLBACK(("RADEONGetPixmapOffsetPitch dest failed\n"));
-
- retry:
-    if (info->new_cs) {
-	driver_priv = exaGetPixmapDriverPrivate(pSrc);
-	if (driver_priv) {
-	    ret = dri_bufmgr_check_aperture_space(driver_priv->bo, RADEON_GEM_DOMAIN_GTT | RADEON_GEM_DOMAIN_VRAM, 0);
-	    if (ret) {
-		RADEONCPFlushIndirect(pScrn, 1);
-		retry_count++;
-		if (retry_count == 2)
-		    RADEON_FALLBACK(("Not enough Video RAM for src\n"));
-		goto retry;
-	    }
-	    info->state_2d.src_bo = driver_priv->bo;
-
-	    driver_priv = exaGetPixmapDriverPrivate(pDst);
-	    if (driver_priv) {
-		ret = dri_bufmgr_check_aperture_space(driver_priv->bo, 0, RADEON_GEM_DOMAIN_VRAM);
-		if (ret) {
-		    RADEONCPFlushIndirect(pScrn, 1);
-		    retry_count++;
-		    if (retry_count == 2)
-		        RADEON_FALLBACK(("Not enough Video RAM for dst\n"));
-		    goto retry;
-		}
-		info->state_2d.dst_bo = driver_priv->bo;
-	    }
-	}
-    }
 
     FUNC_NAME(RADEONDoPrepareCopy)(pScrn, src_pitch_offset, dst_pitch_offset,
 				   datatype, rop, planemask);

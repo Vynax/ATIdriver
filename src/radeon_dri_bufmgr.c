@@ -153,9 +153,12 @@ dri_bufmgr_set_debug(dri_bufmgr *bufmgr, int enable_debug)
 }
 
 int
-dri_bufmgr_check_aperture_space(dri_bo *bo, uint32_t read_domains, uint32_t write_domain)
+dri_bufmgr_check_aperture_space(struct radeon_space_check *bos, int num_bo)
 {
-    return bo->bufmgr->check_aperture_space(bo, read_domains, write_domain);
+  if (num_bo)
+    return BUFMGR_SPACE_OK;
+
+  return bos[0].buf->bufmgr->check_aperture_space(bos, num_bo);
 }
 
 int dri_bo_pin(dri_bo *bo, int domain)

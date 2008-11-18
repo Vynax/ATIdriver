@@ -439,69 +439,94 @@ static uint32_t radeon_gem_bufmgr_get_handle(dri_bo *buf)
 	return gem_bo->gem_handle;
 }
 
-static int radeon_gem_bufmgr_check_aperture_space(dri_bo *buf, uint32_t read_domains, uint32_t write_domain)
+static int radeon_gem_bufmgr_check_aperture_space(struct radeon_space_check *bos, int num_bo)
 {
-	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)buf->bufmgr;
- 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
-	int old_accounted = 0;
+	dri_bufmgr_gem *bufmgr_gem;
+ 	dri_bo_gem *gem_bo;
+	dri_bo *buf;
+	int this_op_read = 0, this_op_write = 0;
+	uint32_t read_domains, write_domain;
+	int i;
+	/* check the totals for this operation */
 
-	if (gem_bo->pinned)
+	if (num_bo == 0)
 		return 0;
 
-	if (write_domain && (write_domain == gem_bo->space_accounted))
-		return 0;
+	bufmgr_gem = (dri_bufmgr_gem *)bos[0].buf;
 
-	if (read_domains && ((read_domains << 16) == gem_bo->space_accounted))
-		return 0;
+	/* prepare */
+	for (i = 0; i < num_bo; i++) {
+		buf = bos[i].buf;
+		gem_bo = (dri_bo_gem *)buf;
 
-	old_accounted = gem_bo->space_accounted;
+		read_domains = bos[i].read_domains;
+		write_domain = bos[i].write_domain;
+		
+		/* pinned bos don't count */
+		if (gem_bo->pinned)
+			continue;
+ 
+		/* already accounted this bo */
+		if (write_domain && (write_domain == gem_bo->space_accounted))
+			continue;
 
-	if (gem_bo->space_accounted == 0) {
-		gem_bo->space_accounted = (read_domains << 16) | write_domain;
-		if (write_domain == RADEON_GEM_DOMAIN_VRAM) {
-			bufmgr_gem->vram_write_used += buf->size;
+		if (read_domains && ((read_domains << 16) == gem_bo->space_accounted))
+			continue;
+
+		if (gem_bo->space_accounted == 0) {
+			if (write_domain == RADEON_GEM_DOMAIN_VRAM)
+				this_op_write += buf->size;
+			else
+				this_op_read += buf->size;
+			bos[i].new_accounted = (read_domains << 16) | write_domain;
 		} else {
-			bufmgr_gem->read_used += buf->size;
-		}
-	} else {
-		uint16_t old_read, old_write;
+			uint16_t old_read, old_write;
 
-		old_read = gem_bo->space_accounted >> 16;
-		old_write = gem_bo->space_accounted & 0xffff;
+			old_read = gem_bo->space_accounted >> 16;
+			old_write = gem_bo->space_accounted & 0xffff;
 
-		if (write_domain && (old_read & write_domain)) {
-			gem_bo->space_accounted = write_domain;
-			/* moving from read to a write domain */
-			if (write_domain == RADEON_GEM_DOMAIN_VRAM) {
-				bufmgr_gem->read_used -= buf->size;
-				bufmgr_gem->vram_write_used += buf->size;
+			if (write_domain && (old_read & write_domain)) {
+				bos[i].new_accounted = write_domain;
+				/* moving from read to a write domain */
+				if (write_domain == RADEON_GEM_DOMAIN_VRAM) {
+					this_op_read -= buf->size;
+					this_op_write += buf->size;
+				}
+			} else if (read_domains & old_write) {
+				bos[i].new_accounted = gem_bo->space_accounted & 0xffff;
+			} else {
+				/* rewrite the domains */
+				if (write_domain != old_write)
+					ErrorF("WRITE DOMAIN RELOC FAILURE 0x%x %d %d\n", gem_bo->gem_handle, write_domain, old_write);
+				if (read_domains != old_read)
+					ErrorF("READ DOMAIN RELOC FAILURE 0x%x %d %d\n", gem_bo->gem_handle, read_domains, old_read);
 			}
-		} else if (read_domains & old_write) {
-			gem_bo->space_accounted &= 0xffff;
-		} else {
-			/* rewrite the domains */
-			if (write_domain != old_write)
-				ErrorF("WRITE DOMAIN RELOC FAILURE 0x%x %d %d\n", gem_bo->gem_handle, write_domain, old_write);
-			if (read_domains != old_read)
-				ErrorF("READ DOMAIN RELOC FAILURE 0x%x %d %d\n", gem_bo->gem_handle, read_domains, old_read);
 		}
 	}
 	
-	if (bufmgr_gem->vram_write_used > bufmgr_gem->vram_limit) {
+	/* check sizes - operation first */
+	if ((this_op_read > bufmgr_gem->gart_limit) ||
+	    (this_op_write > bufmgr_gem->vram_limit)) {
 		bufmgr_gem->vram_write_used = 0;
 		bufmgr_gem->read_used = 0;
-		gem_bo->space_accounted = old_accounted;
-		return -1;
+		return BUFMGR_SPACE_OP_TO_BIG;
 	}
 
-	if (bufmgr_gem->read_used > bufmgr_gem->gart_limit) {
+	if (((bufmgr_gem->vram_write_used + this_op_write) > bufmgr_gem->vram_limit) ||
+	    ((bufmgr_gem->read_used + this_op_read) > bufmgr_gem->gart_limit)) {
 		bufmgr_gem->vram_write_used = 0;
 		bufmgr_gem->read_used = 0;
-		gem_bo->space_accounted = old_accounted;
-		return -1;
+		return BUFMGR_SPACE_FLUSH;
 	}
 
-	return 0;
+	/* commit */
+	for (i = 0; i < num_bo; i++) {
+		buf = bos[i].buf;
+		gem_bo = (dri_bo_gem *)buf;
+		gem_bo->space_accounted = bos[i].new_accounted;
+	}
+
+	return BUFMGR_SPACE_OK;
 }
 
 /**

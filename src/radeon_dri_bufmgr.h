@@ -40,6 +40,16 @@ typedef struct _dri_bufmgr dri_bufmgr;
 typedef struct _dri_bo dri_bo;
 typedef struct _dri_fence dri_fence;
 
+#define BUFMGR_SPACE_OK 0
+#define BUFMGR_SPACE_OP_TO_BIG 1
+#define BUFMGR_SPACE_FLUSH 2
+struct radeon_space_check {
+	dri_bo *buf;
+	uint32_t read_domains;
+	uint32_t write_domain;
+	uint32_t new_accounted;
+};
+
 /* reloc format */
 /* gem handle, read_domains, write_domain, reloc_count */
 #define RADEON_RELOC_SIZE 4
@@ -187,7 +197,7 @@ struct _dri_bufmgr {
 
    void (*post_submit)(dri_bo *batch_buf, dri_fence **fence);
 
-   int (*check_aperture_space)(dri_bo *bo, uint32_t read_domains, uint32_t write_domain);
+   int (*check_aperture_space)(struct radeon_space_check *bos, int num_bo);
 
    int (*pin)(dri_bo *bo, int domain);
    void (*unpin)(dri_bo *bo);
@@ -233,7 +243,7 @@ int dri_emit_reloc(dri_bo *reloc_buf, uint64_t flags, uint32_t delta,
 void *dri_process_relocs(dri_bo *batch_buf, uint32_t *count);
 void dri_post_process_relocs(dri_bo *batch_buf);
 void dri_post_submit(dri_bo *batch_buf, dri_fence **last_fence);
-int dri_bufmgr_check_aperture_space(dri_bo *bo, uint32_t read_domains, uint32_t write_domain);
+int dri_bufmgr_check_aperture_space(struct radeon_space_check *bos, int num_bo);
 
 int dri_bo_pin(dri_bo *bo, int domain);
 void dri_bo_unpin(dri_bo *bo);

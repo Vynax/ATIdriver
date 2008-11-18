@@ -93,6 +93,9 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
     RADEONInfoPtr info = RADEONPTR(pScrn);
     PixmapPtr pPixmap = pPriv->pPixmap;
     struct radeon_exa_pixmap_priv *driver_priv;
+    struct radeon_space_check bos[2];
+    int i, ret;
+    int retry_count = 0;
     dri_bo *dst_bo;
     uint32_t txformat;
     uint32_t txfilter, txformat0, txformat1, txoffset, txpitch;
@@ -105,6 +108,38 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
     int nBox = REGION_NUM_RECTS(&pPriv->clip);
     int qwords;
     ACCEL_PREAMBLE();
+
+ retry:
+    if (info->new_cs) {
+      
+	i = 0;
+	bos[i].buf = pPriv->src_bo;
+	bos[i].read_domains = RADEON_GEM_DOMAIN_GTT | RADEON_GEM_DOMAIN_VRAM;
+	bos[i].write_domain = 0;
+	i++;
+
+	driver_priv = exaGetPixmapDriverPrivate(pPixmap);
+	dst_bo = driver_priv->bo;
+	bos[i].buf = driver_priv->bo;
+	bos[i].read_domains = 0;
+	bos[i].write_domain = RADEON_GEM_DOMAIN_VRAM;;
+	i++;
+
+	ret = dri_bufmgr_check_aperture_space(bos, i);
+	if (ret == BUFMGR_SPACE_OP_TO_BIG) {
+	    ErrorF("Not enough RAM to hw accel composite operation\n");
+	    return;
+	}
+	if (ret == BUFMGR_SPACE_FLUSH) {
+	    RADEONCPFlushIndirect(pScrn, 1);
+	    retry_count++;
+	    if (retry_count == 2) {
+	        ErrorF("Not enough RAM to hw accel composite operation\n");
+	        return;
+	    }
+	    goto retry;
+	}
+    }
 
     pixel_shift = pPixmap->drawable.bitsPerPixel >> 4;
 

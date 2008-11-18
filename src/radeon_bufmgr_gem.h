@@ -3,6 +3,7 @@
 
 #include "radeon_dri_bufmgr.h"
 
+
 extern void radeon_bufmgr_gem_wait_rendering(dri_bo *bo);
 extern dri_bo *radeon_bufmgr_gem_create_bo(dri_bufmgr *bufmgr, struct radeon_memory *mem);
 void radeon_bufmgr_gem_emit_reloc(dri_bo *bo, struct radeon_relocs_info *reloc_info, uint32_t *head, uint32_t *count_p, uint32_t read_domains, uint32_t write_domain);
