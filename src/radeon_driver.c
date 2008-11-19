@@ -6002,8 +6002,11 @@ void RADEONLeaveVT(int scrnIndex, int flags)
 
     xf86_hide_cursors (pScrn);
 
-    if (info->drm_mm)
+    if (info->drm_mm) {
+	info->accel_state->XInited3D = FALSE;
+	info->accel_state->engineMode = EXA_ENGINEMODE_UNKNOWN;
 	radeon_unbind_all_memory(pScrn);
+    }
 
     if (!info->drm_mode_setting) {
 	RADEONRestore(pScrn);
