@@ -452,13 +452,14 @@ static int radeon_gem_bufmgr_check_aperture_space(struct radeon_space_check *bos
 	if (num_bo == 0)
 		return 0;
 
-	bufmgr_gem = (dri_bufmgr_gem *)bos[0].buf;
+	bufmgr_gem = (dri_bufmgr_gem *)bos[0].buf->bufmgr;
 
 	/* prepare */
 	for (i = 0; i < num_bo; i++) {
 		buf = bos[i].buf;
 		gem_bo = (dri_bo_gem *)buf;
 
+		bos[i].new_accounted = 0;
 		read_domains = bos[i].read_domains;
 		write_domain = bos[i].write_domain;
 		
