@@ -3605,6 +3605,7 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 	if (hasDRI) {
 	    info->accelDFS = info->cardType != CARD_AGP;
 
+	    /* disable DFS by default */
             if (info->cardType != CARD_PCIE && info->drm_mm)
 		info->accelDFS = FALSE;
 

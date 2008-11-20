@@ -283,6 +283,7 @@ radeon_bo_gem_create_from_handle(dri_bufmgr *bufmgr,
     bo_gem->refcount = 1;
     bo_gem->pinned = 1;
     bo_gem->gem_handle = handle;
+    bo_gem->in_vram = 1;
 
     bo_gem->next = bufmgr_gem->bo_list;
     bufmgr_gem->bo_list = bo_gem;
@@ -406,6 +407,9 @@ static int radeon_gem_bufmgr_pin(dri_bo *bo, int domain)
 	dri_bo_gem *gem_bo = (dri_bo_gem *)bo;
 	struct drm_radeon_gem_pin pin;
 	int ret;
+
+	if (domain == RADEON_GEM_DOMAIN_VRAM)
+	  gem_bo->in_vram = 1;
 
 	pin.pin_domain = domain;
 	pin.handle = gem_bo->gem_handle;
@@ -623,5 +627,12 @@ void radeon_bufmgr_gem_force_gtt(dri_bo *buf)
 {
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
 
-	gem_bo->force_gtt = 1;
+	if (!gem_bo->pinned)
+	    gem_bo->force_gtt = 1;
+}
+
+int radeon_bufmgr_gem_in_vram(dri_bo *buf)
+{
+	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
+	return gem_bo->in_vram;
 }

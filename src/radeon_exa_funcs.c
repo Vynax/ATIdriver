@@ -523,6 +523,39 @@ RADEONBlitChunk(ScrnInfoPtr pScrn, uint32_t datatype, dri_bo *src_bo, dri_bo *ds
 <<<<<<< HEAD:src/radeon_exa_funcs.c
 =======
 static Bool
+RADEON_DFS_CS2(PixmapPtr pSrc, int x, int y, int w, int h,
+		       char *dst, int dst_pitch)
+{
+    RINFO_FROM_SCREEN(pSrc->drawable.pScreen);
+    struct radeon_exa_pixmap_priv *driver_priv;
+    int		   src_pitch = exaGetPixmapPitch(pSrc);
+    int		   bpp	     = pSrc->drawable.bitsPerPixel;
+    uint32_t src_offset;
+    /* force into GTT? */
+
+    if (!info->accelDFS)
+	return FALSE;
+	
+    driver_priv = exaGetPixmapDriverPrivate(pSrc);
+
+    radeon_bufmgr_gem_force_gtt(driver_priv->bo);
+    radeon_bufmgr_gem_wait_rendering(driver_priv->bo);
+
+    dri_bo_map(driver_priv->bo, 0);
+
+    src_offset = (x * bpp / 8) + (y * src_pitch);
+    w *= bpp / 8;
+
+    while (h--) {
+	    memcpy(dst, driver_priv->bo->virtual + src_offset, w);
+	    src_offset += src_pitch;
+	    dst += dst_pitch;
+    }
+    dri_bo_unmap(driver_priv->bo);
+    return TRUE;
+}
+
+static Bool
 RADEON_DFS_CS(PixmapPtr pSrc, int x, int y, int w, int h,
 		       char *dst, int dst_pitch)
 {
@@ -537,12 +570,21 @@ RADEON_DFS_CS(PixmapPtr pSrc, int x, int y, int w, int h,
     int		   src_pitch = exaGetPixmapPitch(pSrc);
     dri_bo *cur_scratch;
     uint32_t src_pitch_offset;
-
+    struct radeon_space_check bos[3];
+    int retry_count;
+    
     if (!info->accelDFS)
 	return FALSE;
 
     driver_priv = exaGetPixmapDriverPrivate(pSrc);
 
+    if (radeon_bufmgr_gem_has_references(driver_priv->bo))
+	RADEONCPFlushIndirect(pScrn, 0);
+
+    /* if we haven't put this buffer in VRAM then just force gtt and memcpy from it */
+    if (!radeon_bufmgr_gem_in_vram(driver_priv->bo)) {
+	return RADEON_DFS_CS2(pSrc, x, y, w, h, dst, dst_pitch);
+    }
     RADEONGetDatatypeBpp(bpp, &datatype);
     scratch_bo[0] = scratch_bo[1] = NULL;
     for (i = 0; i < 2; i++) {
@@ -550,7 +592,32 @@ RADEON_DFS_CS(PixmapPtr pSrc, int x, int y, int w, int h,
 	if (!scratch_bo[i])
 	    goto fail;
     }
-    
+
+retry:
+    i = 0;
+    bos[i].buf = driver_priv->bo;
+    bos[i].read_domains = RADEON_GEM_DOMAIN_GTT|RADEON_GEM_DOMAIN_VRAM;
+    bos[i].write_domain = 0;
+    i++;
+    bos[i].buf = scratch_bo[0];
+    bos[i].read_domains = 0;
+    bos[i].write_domain = RADEON_GEM_DOMAIN_GTT;
+    i++;
+    bos[i].buf = scratch_bo[1];
+    bos[i].read_domains = 0;
+    bos[i].write_domain = RADEON_GEM_DOMAIN_GTT;
+    i++;
+
+    ret = dri_bufmgr_check_aperture_space(bos, i);
+    if (ret == BUFMGR_SPACE_OP_TO_BIG)
+	goto fail;
+    if (ret == BUFMGR_SPACE_FLUSH) {
+	RADEONCPFlushIndirect(pScrn, 1);
+	retry_count++;
+	if (retry_count == 2)
+	    goto fail;
+	goto retry;
+    }
     
     /* we want to blit from the BO to the scratch and memcpy out of the scratch */
     {
@@ -639,8 +706,10 @@ RADEONDownloadFromScreenCP(PixmapPtr pSrc, int x, int y, int w, int h,
 
 #ifdef ACCEL_CP
 
-    if (info->new_cs)
+    if (info->new_cs) {
 	return RADEON_DFS_CS(pSrc, x, y, w, h, dst, dst_pitch);
+    }
+
     /*
      * Try to accelerate download. Use an indirect buffer as scratch space,
      * blitting the bits to one half while copying them out of the other one and
