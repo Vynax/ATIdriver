@@ -413,7 +413,7 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
     if (bpp < 8)
 	return FALSE;
 
-    if (info->new_cs)
+    if (info->new_cs) 
 	dst = info->mm.front_buffer->map + exaGetPixmapOffset(pDst);
 
 #ifdef ACCEL_CP
@@ -427,6 +427,9 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 	    if (!driver_priv)
 		return FALSE;
 
+
+	    if (radeon_bufmgr_gem_has_references(driver_priv->bo))
+		RADEONCPFlushIndirect(pScrn, 0);
 
 	    /* use pwrites - maybe require some sort of fallback */
 	    bo_width = w * (bpp / 8);
