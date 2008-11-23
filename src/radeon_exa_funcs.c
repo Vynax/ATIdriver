@@ -231,12 +231,12 @@ FUNC_NAME(RADEONDoneSolid)(PixmapPtr pPix)
 
     TRACE;
 
+    info->state_2d.op = 0;
     BEGIN_ACCEL(2);
     OUT_ACCEL_REG(RADEON_DSTCACHE_CTLSTAT, RADEON_RB2D_DC_FLUSH_ALL);
     OUT_ACCEL_REG(RADEON_WAIT_UNTIL,
                   RADEON_WAIT_2D_IDLECLEAN | RADEON_WAIT_DMA_GUI_IDLE);
     FINISH_ACCEL();
-    info->state_2d.op = 0;
 }
 
 
@@ -381,13 +381,12 @@ FUNC_NAME(RADEONDoneCopy)(PixmapPtr pDst)
 
     TRACE;
 
+    info->state_2d.op = 0;
     BEGIN_ACCEL(2);
     OUT_ACCEL_REG(RADEON_DSTCACHE_CTLSTAT, RADEON_RB2D_DC_FLUSH_ALL);
     OUT_ACCEL_REG(RADEON_WAIT_UNTIL,
                   RADEON_WAIT_2D_IDLECLEAN | RADEON_WAIT_DMA_GUI_IDLE);
     FINISH_ACCEL();
-
-    info->state_2d.op = 0;
 }
 
 
