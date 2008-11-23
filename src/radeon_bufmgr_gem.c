@@ -515,6 +515,9 @@ static int radeon_gem_bufmgr_check_aperture_space(struct radeon_space_check *bos
 		}
 	}
 	
+	if (this_op_read < 0)
+		this_op_read = 0;
+
 	/* check sizes - operation first */
 	if ((this_op_read + this_op_gart_write > bufmgr_gem->gart_limit) ||
 	    (this_op_vram_write > bufmgr_gem->vram_limit)) {
