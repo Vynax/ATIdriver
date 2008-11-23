@@ -430,6 +430,8 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 	    if (radeon_bufmgr_gem_has_references(driver_priv->bo))
 		RADEONCPFlushIndirect(pScrn, 0);
 
+	    radeon_bufmgr_gem_wait_rendering(driver_priv->bo);
+
 	    /* use pwrites - maybe require some sort of fallback */
 	    bo_width = w * (bpp / 8);
 	    offset = (x * bpp / 8) + (y * dst_pitch);
