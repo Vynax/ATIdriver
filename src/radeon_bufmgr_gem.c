@@ -510,6 +510,7 @@ static int radeon_gem_bufmgr_check_aperture_space(struct radeon_space_check *bos
 					ErrorF("WRITE DOMAIN RELOC FAILURE 0x%x %d %d\n", gem_bo->gem_handle, write_domain, old_write);
 				if (read_domains != old_read)
 					ErrorF("READ DOMAIN RELOC FAILURE 0x%x %d %d\n", gem_bo->gem_handle, read_domains, old_read);
+				return BUFMGR_SPACE_FLUSH;
 			}
 		}
 	}
