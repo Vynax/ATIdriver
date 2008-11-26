@@ -414,7 +414,7 @@ static int radeon_gem_bufmgr_pin(dri_bo *bo, int domain)
 	int ret;
 
 	if (domain == RADEON_GEM_DOMAIN_VRAM)
-	  gem_bo->in_vram = 1;
+		gem_bo->in_vram = 1;
 
 	pin.pin_domain = domain;
 	pin.handle = gem_bo->gem_handle;
@@ -424,6 +424,8 @@ static int radeon_gem_bufmgr_pin(dri_bo *bo, int domain)
 	if (ret != 0)
 		return -1;
 
+	/* pinned buffers are considered touched */
+	gem_bo->touched = 1;
 	gem_bo->pinned = 1;
 	return 0;
 }
