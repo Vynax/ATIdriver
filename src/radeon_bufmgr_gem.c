@@ -242,6 +242,9 @@ void radeon_bufmgr_gem_wait_rendering(dri_bo *buf)
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
 	int ret;
 
+	if (!gem_bo->touched)
+		return;
+
 	/* do a set domain */
 	if (gem_bo->force_gtt) {
 		sd_args.handle = gem_bo->gem_handle;
@@ -284,6 +287,8 @@ radeon_bo_gem_create_from_handle(dri_bufmgr *bufmgr,
     bo_gem->pinned = 1;
     bo_gem->gem_handle = handle;
     bo_gem->in_vram = 1;
+    /* if we get from kernel assume touched */
+    bo_gem->touched = 1;
 
     bo_gem->next = bufmgr_gem->bo_list;
     bufmgr_gem->bo_list = bo_gem;
@@ -638,7 +643,7 @@ void radeon_bufmgr_gem_force_gtt(dri_bo *buf)
 {
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
 
-	if (!gem_bo->pinned)
+	if (!gem_bo->pinned && !gem_bo->force_gtt)
 	    gem_bo->force_gtt = 1;
 }
 
