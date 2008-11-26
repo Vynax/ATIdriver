@@ -54,6 +54,10 @@
 #define ONLY_ONCE
 #endif
 
+#define VTX_COUNT_MASK 6
+#define VTX_COUNT 4
+
+
 /* Only include the following (generic) bits once. */
 #ifdef ONLY_ONCE
 
@@ -1505,6 +1509,12 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 	return FALSE;
 
     RADEON_SWITCH_TO_3D();
+<<<<<<< HEAD:src/radeon_exa_render.c
+=======
+    BEGIN_ACCEL(1);
+    OUT_ACCEL_REG(R300_TX_INVALTAGS, 0x0);
+    FINISH_ACCEL();
+>>>>>>> radeon: brutal attempt to fix RS4xx and RS6xx by flushing more often:src/radeon_exa_render.c
 
     if (!FUNC_NAME(R300TextureSetup)(pSrcPicture, pSrc, 0))
 	return FALSE;
@@ -2176,17 +2186,35 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 
     FINISH_ACCEL();
 
+<<<<<<< HEAD:src/radeon_exa_render.c
     BEGIN_ACCEL(1);
     if (info->accel_state->has_mask)
 	OUT_ACCEL_REG(R300_VAP_VTX_SIZE, 6);
     else
 	OUT_ACCEL_REG(R300_VAP_VTX_SIZE, 4);
     FINISH_ACCEL();
+=======
+    if (IS_R300_3D || IS_R500_3D) {
+	uint32_t vtx_count;
+	
+	if (info->accel_state->has_mask)
+	    vtx_count = VTX_COUNT_MASK;
+	else
+	    vtx_count = VTX_COUNT;
+
+	BEGIN_ACCEL(1);
+	OUT_ACCEL_REG(R300_VAP_VTX_SIZE, vtx_count);
+	FINISH_ACCEL();
+    }
+>>>>>>> radeon: brutal attempt to fix RS4xx and RS6xx by flushing more often:src/radeon_exa_render.c
 
     return TRUE;
 }
 
+<<<<<<< HEAD:src/radeon_exa_render.c
 
+=======
+>>>>>>> radeon: brutal attempt to fix RS4xx and RS6xx by flushing more often:src/radeon_exa_render.c
 #ifdef ACCEL_CP
 
 #define VTX_OUT_MASK(_dstX, _dstY, _srcX, _srcY, _maskX, _maskY)	\
@@ -2293,12 +2321,15 @@ static void FUNC_NAME(RadeonCompositeTile)(ScrnInfoPtr pScrn,
 	    transformPoint(info->accel_state->transform[1], &maskBottomRight);
 	}
 
+<<<<<<< HEAD:src/radeon_exa_render.c
 	vtx_count = 6;
     } else
 	vtx_count = 4;
 
     if (info->accel_state->vsync)
 	FUNC_NAME(RADEONWaitForVLine)(pScrn, pDst, RADEONBiggerCrtcArea(pDst), dstY, dstY + h);
+=======
+>>>>>>> radeon: brutal attempt to fix RS4xx and RS6xx by flushing more often:src/radeon_exa_render.c
 
 #ifdef ACCEL_CP
     if (info->ChipFamily < CHIP_FAMILY_R200) {
@@ -2472,14 +2503,21 @@ static void FUNC_NAME(RadeonDoneComposite)(PixmapPtr pDst)
 
     if (IS_R300_3D || IS_R500_3D) {
 	BEGIN_ACCEL(3);
-	OUT_ACCEL_REG(R300_SC_CLIP_RULE, 0xAAAA);
 	OUT_ACCEL_REG(R300_RB3D_DSTCACHE_CTLSTAT, R300_RB3D_DC_FLUSH_ALL);
+	OUT_ACCEL_REG(R300_SC_CLIP_RULE, 0xaaaa);
     } else
 	BEGIN_ACCEL(1);
     OUT_ACCEL_REG(RADEON_WAIT_UNTIL, RADEON_WAIT_3D_IDLECLEAN);
     FINISH_ACCEL();
 
     LEAVE_DRAW(0);
+
+    /* workaround hang on RS4xx and RS6xx chips */
+    if(info->ChipFamily == CHIP_FAMILY_RS400 ||
+       info->ChipFamily == CHIP_FAMILY_RS480 ||
+       info->ChipFamily == CHIP_FAMILY_RS600 ||
+       info->ChipFamily == CHIP_FAMILY_RS690)
+	RADEONCPFlushIndirect(pScrn, 1);
 }
 
 #undef ONLY_ONCE
