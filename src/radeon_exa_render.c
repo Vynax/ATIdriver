@@ -2512,12 +2512,14 @@ static void FUNC_NAME(RadeonDoneComposite)(PixmapPtr pDst)
 
     LEAVE_DRAW(0);
 
+#if 0
     /* workaround hang on RS4xx and RS6xx chips */
     if(info->ChipFamily == CHIP_FAMILY_RS400 ||
        info->ChipFamily == CHIP_FAMILY_RS480 ||
        info->ChipFamily == CHIP_FAMILY_RS600 ||
        info->ChipFamily == CHIP_FAMILY_RS690)
 	RADEONCPFlushIndirect(pScrn, 1);
+#endif
 }
 
 #undef ONLY_ONCE
