@@ -5852,7 +5852,8 @@ Bool RADEONEnterVT(int scrnIndex, int flags)
 	info->accel_state->engineMode = EXA_ENGINEMODE_UNKNOWN;
     }
 
-    radeon_update_dri_buffers(pScrn->pScreen);
+    if (info->directRenderingEnabled)
+    	radeon_update_dri_buffers(pScrn->pScreen);
 
     pScrn->vtSema = TRUE;
 
