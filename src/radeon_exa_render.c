@@ -647,6 +647,7 @@ static Bool FUNC_NAME(R100PrepareComposite)(int op,
     if (((dst_pitch >> pixel_shift) & 0x7) != 0)
 	RADEON_FALLBACK(("Bad destination pitch 0x%x\n", (int)dst_pitch));
 
+
     if (!RADEONSetupSourceTile(pSrcPicture, pSrc, FALSE, TRUE))
 	return FALSE;
 
@@ -1509,12 +1510,9 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 	return FALSE;
 
     RADEON_SWITCH_TO_3D();
-<<<<<<< HEAD:src/radeon_exa_render.c
-=======
     BEGIN_ACCEL(1);
     OUT_ACCEL_REG(R300_TX_INVALTAGS, 0x0);
     FINISH_ACCEL();
->>>>>>> radeon: brutal attempt to fix RS4xx and RS6xx by flushing more often:src/radeon_exa_render.c
 
     if (!FUNC_NAME(R300TextureSetup)(pSrcPicture, pSrc, 0))
 	return FALSE;
