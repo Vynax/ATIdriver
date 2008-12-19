@@ -3724,7 +3724,8 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 	}
     }
 
-    RADEONDRIDoMappings(pScreen);
+    if (info->directRenderingEnabled == TRUE)
+        RADEONDRIDoMappings(pScreen);
 
 #endif
     xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
