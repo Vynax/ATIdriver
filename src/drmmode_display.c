@@ -246,7 +246,7 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 			output_count++;
 		}
 
-		if (!xf86CrtcRotate(crtc, mode, rotation)) {
+		if (!xf86CrtcRotate(crtc)) {
 			goto done;
 		}
 
