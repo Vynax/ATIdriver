@@ -651,11 +651,10 @@ drmBufPtr RADEONCSGetBuffer(ScrnInfoPtr pScrn)
     return &info->cp->ib_gem_fake;
 }
 
-#ifdef DRM_RADEON_CS2
 void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
 {
     RADEONInfoPtr  info = RADEONPTR(pScrn);
-    struct drm_radeon_cs2 args;
+    struct drm_radeon_cs args;
     struct drm_radeon_cs_chunk chunk[2];
     uint64_t chunk_array[2];
     int retry = 0;
@@ -689,7 +688,7 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
     args.chunks = (uint64_t)(unsigned long)chunk_array;
 
     do {
-	ret = drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_CS2,
+	ret = drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_CS,
 				  &args, sizeof(args));
 	retry++;
     } while (ret == -EAGAIN && retry < 1000);
@@ -711,52 +710,11 @@ void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
        buffer as the kernel needs to use the blit engine to move stuff around */
     if (info->reemit_current2d)
       info->reemit_current2d(pScrn, 0);
-}
-#else
-void RADEONCSFlushIndirect(ScrnInfoPtr pScrn, int discard)
-{
-    RADEONInfoPtr  info = RADEONPTR(pScrn);
-    struct drm_radeon_cs args;
-    int ret;
-    RING_LOCALS;
-
-    /* always add the cache flushes to the end of the IB */
-    info->cp->indirectBuffer->total += RADEON_IB_RESERVE;
-    
-    /* end of IB purge caches */
-    if (info->cs_used_depth) {
-	RADEON_PURGE_ZCACHE();
-	info->cs_used_depth = 0;
+    if (info->dri2.enabled) {
+    info->accel_state->XInited3D = FALSE;
+    info->accel_state->engineMode = EXA_ENGINEMODE_UNKNOWN;
     }
-
-    RADEON_PURGE_CACHE();
-    RADEON_WAIT_UNTIL_IDLE();
-
-    args.packets = (unsigned long)info->cp->ib_gem_fake.address;
-    args.dwords = info->cp->indirectBuffer->used / sizeof(uint32_t);
-
-    ret = drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_CS,
-			      &args, sizeof(args));
-
-    if (ret) {
-      FatalError("DRM Command submission failure %d\n", ret);
-      return;
-    }
-
-
-    info->cp->indirectStart = 0;
-    info->cp->indirectBuffer->used = 0;
-    info->cp->indirectBuffer->total -= RADEON_IB_RESERVE;
-
-    if (info->bufmgr)
-      radeon_gem_bufmgr_post_submit(info->bufmgr);
-    
-    /* copy some state into the buffer now - we need to add 2D state to each
-       buffer as the kernel needs to use the blit engine to move stuff around */
-    if (info->reemit_current2d)
-      info->reemit_current2d(pScrn, 0);
 }
-#endif
 
 void RADEONCSReleaseIndirect(ScrnInfoPtr pScrn)
 {
