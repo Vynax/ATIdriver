@@ -481,6 +481,9 @@ Bool radeon_update_dri_buffers(ScreenPtr pScreen)
     if (info->ChipFamily >= CHIP_FAMILY_R600)
 	return TRUE;
 
+    if (!info->drm_mm)
+	return TRUE;
+
     success = radeon_update_dri_mappings(pScrn, sarea);
 
     if (!success)
@@ -1345,7 +1348,7 @@ static Bool RADEONDRIMapInit(RADEONInfoPtr info, ScreenPtr pScreen)
 {
 
     if (info->drm_mm)
-    return TRUE;
+    	return TRUE;
 				/* Map registers */
     info->dri->registerSize = info->MMIOSize;
     if (drmAddMap(info->dri->drmFD, info->MMIOAddr, info->dri->registerSize,
