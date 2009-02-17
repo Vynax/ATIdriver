@@ -2013,10 +2013,10 @@ Bool RADEONDRIFinishScreenInit(ScreenPtr pScreen)
     if (!info->drm_mode_setting) {
 	/* Initialize IRQ */
 	RADEONDRIIrqInit(info, pScreen);
+        /* Initialize kernel GART memory manager */
+        RADEONDRIGartHeapInit(info, pScreen);
     }
 
-    /* Initialize kernel GART memory manager */
-    RADEONDRIGartHeapInit(info, pScreen);
 
     /* Initialize and start the CP if required */
     RADEONDRICPInit(pScrn);
