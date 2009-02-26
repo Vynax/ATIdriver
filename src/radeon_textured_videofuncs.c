@@ -187,7 +187,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			  RADEON_WAIT_DMA_GUI_IDLE);
 	    FINISH_ACCEL();
 
-	    if (!info->accel_state->XInited3D)
+	    if (!info->accel_state->XInited3D && !info->drm_mm)
 		RADEONInit3DEngine(pScrn);
 	}
 
