@@ -2881,6 +2881,8 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 	info->ModeReg = &pRADEONEnt->ModeReg;
     }
 
+    info->PciInfo = xf86GetPciInfoForEntity(info->pEnt->index);
+
     if (!info->drm_mode_setting) {
 
 	info->PciTag  = pciTag(PCI_DEV_BUS(info->PciInfo),
@@ -3608,16 +3610,8 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
     if (info->useEXA) {
 #ifdef XF86DRI
 	if (hasDRI) {
-	    info->accelDFS = info->cardType != CARD_AGP;
-
-	    /* disable DFS by default */
-            if (info->cardType != CARD_PCIE && info->drm_mm)
-		info->accelDFS = FALSE;
-
-	    if (xf86GetOptValInteger(info->Options, OPTION_ACCEL_DFS,
-				     &info->accelDFS)) {
-		from = X_CONFIG;
-	    }
+	    info->accelDFS = xf86ReturnOptValBool(info->Options, OPTION_ACCEL_DFS,
+                                                  info->cardType != CARD_AGP);
 
 	    if (info->drm_mm)
 	      info->accelDFS = FALSE;

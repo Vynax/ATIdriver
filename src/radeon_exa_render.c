@@ -2184,35 +2184,16 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 
     FINISH_ACCEL();
 
-<<<<<<< HEAD:src/radeon_exa_render.c
     BEGIN_ACCEL(1);
     if (info->accel_state->has_mask)
 	OUT_ACCEL_REG(R300_VAP_VTX_SIZE, 6);
     else
 	OUT_ACCEL_REG(R300_VAP_VTX_SIZE, 4);
     FINISH_ACCEL();
-=======
-    if (IS_R300_3D || IS_R500_3D) {
-	uint32_t vtx_count;
-	
-	if (info->accel_state->has_mask)
-	    vtx_count = VTX_COUNT_MASK;
-	else
-	    vtx_count = VTX_COUNT;
-
-	BEGIN_ACCEL(1);
-	OUT_ACCEL_REG(R300_VAP_VTX_SIZE, vtx_count);
-	FINISH_ACCEL();
-    }
->>>>>>> radeon: brutal attempt to fix RS4xx and RS6xx by flushing more often:src/radeon_exa_render.c
 
     return TRUE;
 }
 
-<<<<<<< HEAD:src/radeon_exa_render.c
-
-=======
->>>>>>> radeon: brutal attempt to fix RS4xx and RS6xx by flushing more often:src/radeon_exa_render.c
 #ifdef ACCEL_CP
 
 #define VTX_OUT_MASK(_dstX, _dstY, _srcX, _srcY, _maskX, _maskY)	\
@@ -2319,15 +2300,12 @@ static void FUNC_NAME(RadeonCompositeTile)(ScrnInfoPtr pScrn,
 	    transformPoint(info->accel_state->transform[1], &maskBottomRight);
 	}
 
-<<<<<<< HEAD:src/radeon_exa_render.c
 	vtx_count = 6;
     } else
 	vtx_count = 4;
 
     if (info->accel_state->vsync)
 	FUNC_NAME(RADEONWaitForVLine)(pScrn, pDst, RADEONBiggerCrtcArea(pDst), dstY, dstY + h);
-=======
->>>>>>> radeon: brutal attempt to fix RS4xx and RS6xx by flushing more often:src/radeon_exa_render.c
 
 #ifdef ACCEL_CP
     if (info->ChipFamily < CHIP_FAMILY_R200) {

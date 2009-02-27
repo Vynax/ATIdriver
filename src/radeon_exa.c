@@ -684,7 +684,6 @@ RADEONTexOffsetStart(PixmapPtr pPix)
     RINFO_FROM_SCREEN(pPix->drawable.pScreen);
     unsigned long long offset;
     struct radeon_exa_pixmap_priv *driver_priv;
-    uint32_t offset;
 
     driver_priv = exaGetPixmapDriverPrivate(pPix);
 

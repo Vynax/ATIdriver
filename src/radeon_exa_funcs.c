@@ -392,18 +392,15 @@ FUNC_NAME(RADEONDoneCopy)(PixmapPtr pDst)
 
 #ifdef ACCEL_CP
 
+#if 0
 static Bool
 RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 		       char *src, int src_pitch)
 {
     RINFO_FROM_SCREEN(pDst->drawable.pScreen);
     unsigned int   bpp	     = pDst->drawable.bitsPerPixel;
-<<<<<<< HEAD:src/radeon_exa_funcs.c
-=======
     int ret;
     struct radeon_exa_pixmap_priv *driver_priv;
-#ifdef ACCEL_CP
->>>>>>> radeon: implement simple UTS:src/radeon_exa_funcs.c
     unsigned int   hpass;
     uint32_t	   buf_pitch, dst_pitch_off;
 
@@ -411,11 +408,6 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 
     if (bpp < 8)
 	return FALSE;
-
-    if (info->new_cs) 
-	dst = info->mm.front_buffer->map + exaGetPixmapOffset(pDst);
-
-#ifdef ACCEL_CP
 
     if (info->new_cs){
 
@@ -478,6 +470,7 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 
     return FALSE;
 }
+#endif
 
 /* Emit blit with arbitrary source and destination offsets and pitches */
 static void
@@ -524,8 +517,6 @@ RADEONBlitChunk(ScrnInfoPtr pScrn, uint32_t datatype, dri_bo *src_bo, dri_bo *ds
     FINISH_ACCEL();
 }
 
-<<<<<<< HEAD:src/radeon_exa_funcs.c
-=======
 static Bool
 RADEON_DFS_CS2(PixmapPtr pSrc, int x, int y, int w, int h,
 		       char *dst, int dst_pitch)
@@ -693,8 +684,6 @@ retry:
 	dri_bo_unreference(scratch_bo[1]);
     return FALSE;
 }
-#endif
->>>>>>> radeon: add DFS support for CS:src/radeon_exa_funcs.c
 
 static Bool
 RADEONDownloadFromScreenCP(PixmapPtr pSrc, int x, int y, int w, int h,
@@ -707,8 +696,6 @@ RADEONDownloadFromScreenCP(PixmapPtr pSrc, int x, int y, int w, int h,
     drmBufPtr scratch;
 
     TRACE;
-
-#ifdef ACCEL_CP
 
     if (info->new_cs) {
 	return RADEON_DFS_CS(pSrc, x, y, w, h, dst, dst_pitch);
@@ -838,7 +825,7 @@ Bool FUNC_NAME(RADEONDrawInit)(ScreenPtr pScreen)
     info->accel_state->exa->MarkSync = FUNC_NAME(RADEONMarkSync);
     info->accel_state->exa->WaitMarker = FUNC_NAME(RADEONSync);
 #ifdef ACCEL_CP
-    info->accel_state->exa->UploadToScreen = RADEONUploadToScreenCP;
+  //  info->accel_state->exa->UploadToScreen = RADEONUploadToScreenCP;
     if (info->accelDFS)
 	info->accel_state->exa->DownloadFromScreen = RADEONDownloadFromScreenCP;
 #endif
