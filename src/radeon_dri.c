@@ -484,6 +484,9 @@ Bool radeon_update_dri_buffers(ScreenPtr pScreen)
     if (!info->drm_mm)
 	return TRUE;
 
+    if (info->dri2.enabled)
+	return TRUE;
+
     success = radeon_update_dri_mappings(pScrn, sarea);
 
     if (!success)
