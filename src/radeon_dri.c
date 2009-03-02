@@ -476,7 +476,7 @@ Bool radeon_update_dri_buffers(ScreenPtr pScreen)
     ScrnInfoPtr    pScrn = xf86Screens[pScreen->myNum];
     RADEONInfoPtr  info  = RADEONPTR(pScrn);
     Bool success;
-    drm_radeon_sarea_t * sarea = DRIGetSAREAPrivate(pScreen);
+    drm_radeon_sarea_t *sarea;
 
     if (info->ChipFamily >= CHIP_FAMILY_R600)
 	return TRUE;
@@ -487,6 +487,7 @@ Bool radeon_update_dri_buffers(ScreenPtr pScreen)
     if (info->dri2.enabled)
 	return TRUE;
 
+    sarea = DRIGetSAREAPrivate(pScreen);
     success = radeon_update_dri_mappings(pScrn, sarea);
 
     if (!success)
