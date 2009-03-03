@@ -57,7 +57,6 @@ radeon_unbind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 	if (!info->drm_mm)
 		return FALSE;
 
-
 	if (mem->kernel_bo_handle) {
 		struct drm_radeon_gem_unpin unpin;
 
@@ -276,12 +275,10 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     	cursor_size = RADEON_ALIGN(cursor_size, pagesize);
 	for (c = 0; c < xf86_config->num_crtc; c++) {
 	    /* cursor objects */
-	    info->mm.cursor[c] = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, cursor_size, 0, 1, "Cursor", 1);
+	    info->mm.cursor[c] = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, cursor_size, 0, 1, "Cursor", 0);
 	    if (!info->mm.cursor[c]) {
 		return FALSE;
 	    }
-
-	    radeon_bind_memory(pScrn, info->mm.cursor[c]);
 
 	    if (radeon_map_memory(pScrn, info->mm.cursor[c])) {
 		ErrorF("Failed to map front buffer memory\n");
@@ -302,13 +299,12 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     /* keep area front front buffer - but don't allocate it yet */
     total_size_bytes += screen_size;
 
-    if (info->directRenderingEnabled) {
+    if (info->directRenderingEnabled && !info->dri2.enabled) {
 	info->dri->backPitch = pScrn->displayWidth;
 	info->mm.back_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, screen_size, 0, 1, "Back Buffer", 0);
 	if (!info->mm.back_buffer) {
 	    return FALSE;
 	}
-	//	radeon_bind_memory(pScrn, info->mm.back_buffer);
 	total_size_bytes += screen_size;
 	
 	info->dri->depthPitch = RADEON_ALIGN(pScrn->displayWidth, 32);
@@ -320,7 +316,6 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 	    if (!info->mm.depth_buffer) {
 		return FALSE;
 	    }
-	    //	    radeon_bind_memory(pScrn, info->mm.depth_buffer);
 	    total_size_bytes += depth_size;
 	}
     }
@@ -352,11 +347,13 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 	return FALSE;
     }
 
-    radeon_bind_memory(pScrn, info->mm.front_buffer);
-    if (radeon_map_memory(pScrn, info->mm.front_buffer)) {
+    /* don't need to bind or map memory */
+    if (!info->dri2.enabled) {
+      if (radeon_map_memory(pScrn, info->mm.front_buffer)) {
 	ErrorF("Failed to map front buffer memory\n");
+      }
+      info->dri->frontPitch = pScrn->displayWidth;
     }
-    info->dri->frontPitch = pScrn->displayWidth;
 
     if (info->directRenderingEnabled && info->dri->textureSize) {
 	info->mm.texture_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, info->dri->textureSize, 0, 1, "Texture Buffer", 1);
@@ -371,8 +368,10 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     }
 
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Front buffer size: %dK at 0x%08x\n", info->mm.front_buffer->size/1024, info->mm.front_buffer->offset);
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Back buffer size:  %dK at 0x%08x\n", info->mm.back_buffer->size/1024, info->mm.back_buffer->offset);
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Depth buffer size: %dK at 0x%08x\n", info->mm.depth_buffer->size/1024, info->mm.depth_buffer->offset);
+    if (info->directRenderingEnabled && !info->dri2.enabled) {
+   	 xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Back buffer size:  %dK at 0x%08x\n", info->mm.back_buffer->size/1024, info->mm.back_buffer->offset);
+    	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Depth buffer size: %dK at 0x%08x\n", info->mm.depth_buffer->size/1024, info->mm.depth_buffer->offset);
+    }
     if (info->mm.texture_buffer)
       xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Texture size:      %dK at 0x%08x\n", info->mm.texture_buffer->size/1024, info->mm.texture_buffer->offset);
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Remaining VRAM size (used for pixmaps): %dK\n", remain_size_bytes/1024);
@@ -383,32 +382,6 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     radeon_bufmgr_gem_set_limit(info->bufmgr, RADEON_GEM_DOMAIN_VRAM, remain_size_bytes);
     return TRUE;
 }
-
-Bool radeon_setup_gart_mem(ScreenPtr pScreen)
-{
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    RADEONInfoPtr info = RADEONPTR(pScrn);
-
-#if 0
-    info->mm.gart_texture_buffer =
-	radeon_allocate_memory(pScrn, RADEON_POOL_GART,
-			       info->dri->gartTexMapSize,
-			       0, 1, "GART texture buffers", 1);
-    
-    if (!info->mm.gart_texture_buffer) {
-	return FALSE;
-    }
-
-    radeon_bind_memory(pScrn, info->mm.gart_texture_buffer);
-#endif
-    return TRUE;
-}
-
-uint32_t radeon_create_new_fb(ScrnInfoPtr pScrn, int width, int height, int *pitch)
-{
-    return 0;
-}
-
 
 dri_bo *radeon_create_rotate_bo(ScrnInfoPtr pScrn, int size)
 {

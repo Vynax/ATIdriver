@@ -656,11 +656,13 @@ int radeon_bo_gem_name_buffer(dri_bo *bo, uint32_t *name)
     int r;
 
     flink.handle = gem_bo->gem_handle;
+	fprintf(stderr,"naming attemp %d\n", flink.handle);
     r = ioctl(bufmgr_gem->fd, DRM_IOCTL_GEM_FLINK, &flink);
     if (r) {
         DBG("[drm] failed to name buffer %d\n", -errno);
         return r;
     }
+	fprintf(stderr,"naming %d with %d\n", flink.handle, flink.name);
     *name = flink.name;
     return 0;
 }

@@ -39,23 +39,6 @@
 #define DPMS_SERVER
 #include <X11/extensions/dpms.h>
 
-static Bool drmmode_resize_fb(ScrnInfoPtr scrn, drmmode_ptr drmmode, int width, int height);
-
-static Bool
-drmmode_xf86crtc_resize (ScrnInfoPtr scrn, int width, int height)
-{
-	xf86CrtcConfigPtr   xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
-	drmmode_crtc_private_ptr drmmode_crtc = xf86_config->crtc[0]->driver_private;
-	drmmode_ptr drmmode = drmmode_crtc->drmmode;
-	Bool ret;
-
-	ErrorF("resize called %d %d\n", width, height);
-	ret = drmmode_resize_fb(scrn, drmmode, width, height);
-	scrn->virtualX = width;
-	scrn->virtualY = height;
-	return TRUE;
-}
-
 static void
 drmmode_ConvertFromKMode(ScrnInfoPtr	scrn,
 		     struct drm_mode_modeinfo *kmode,
@@ -114,10 +97,6 @@ drmmode_ConvertToKMode(ScrnInfoPtr	scrn,
 	kmode->name[DRM_DISPLAY_MODE_LEN-1] = 0;
 
 }
-
-static const xf86CrtcConfigFuncsRec drmmode_xf86crtc_config_funcs = {
-	drmmode_xf86crtc_resize
-};
 
 static void
 drmmode_crtc_dpms(xf86CrtcPtr crtc, int mode)
@@ -663,6 +642,102 @@ drmmode_output_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int num)
 	return;
 }
 
+static Bool
+drmmode_xf86crtc_resize (ScrnInfoPtr scrn, int width, int height)
+{
+	xf86CrtcConfigPtr xf86_config = XF86_CRTC_CONFIG_PTR(scrn);
+	drmmode_crtc_private_ptr
+		    drmmode_crtc = xf86_config->crtc[0]->driver_private;
+	drmmode_ptr drmmode = drmmode_crtc->drmmode;
+	RADEONInfoPtr info = RADEONPTR(scrn);
+	struct radeon_memory *old_front = NULL;
+	BoxRec	    mem_box;
+	Bool	    tiled, ret;
+	ScreenPtr   screen = screenInfo.screens[scrn->scrnIndex];
+	uint32_t    old_fb_id;
+	int	    i, pitch, old_width, old_height, old_pitch;
+	int screen_size;
+	int cpp = info->CurrentLayout.pixel_bytes;
+	dri_bo *front_bo;
+
+	if (scrn->virtualX == width && scrn->virtualY == height)
+		return TRUE;
+
+	front_bo = radeon_get_pixmap_bo(screen->GetScreenPixmap(screen));
+	RADEONCPFlushIndirect(scrn, 0);
+
+	if (front_bo)
+		radeon_bufmgr_gem_wait_rendering(front_bo);
+	pitch = RADEON_ALIGN(width, 63);
+	height = RADEON_ALIGN(height, 16);
+
+	screen_size = pitch * height * cpp;
+
+	xf86DrvMsg(scrn->scrnIndex, X_INFO,
+		   "Allocate new frame buffer %dx%d stride %d\n",
+		   width, height, pitch);
+
+	old_width = scrn->virtualX;
+	old_height = scrn->virtualY;
+	old_pitch = scrn->displayWidth;
+	old_fb_id = drmmode->fb_id;
+	old_front = info->mm.front_buffer;
+
+	scrn->virtualX = width;
+	scrn->virtualY = height;
+	scrn->displayWidth = pitch;
+	info->mm.front_buffer = radeon_allocate_memory(scrn, RADEON_POOL_VRAM, screen_size, 0, 1, "Front Buffer", 0);
+	if (!info->mm.front_buffer)
+		goto fail;
+
+	ret = drmModeAddFB(drmmode->fd, width, height, scrn->depth,
+			   scrn->bitsPerPixel, pitch * cpp,
+			   info->mm.front_buffer->kernel_bo_handle,
+			   &drmmode->fb_id);
+	if (ret)
+		goto fail;
+
+	radeon_set_pixmap_bo(screen->GetScreenPixmap(screen), info->mm.front_buffer);
+	screen->ModifyPixmapHeader(screen->GetScreenPixmap(screen),
+				   width, height, -1, -1, pitch * cpp, NULL);
+
+	xf86DrvMsg(scrn->scrnIndex, X_INFO, "New front buffer at 0x%lx\n",
+		   info->mm.front_buffer->offset);
+
+	for (i = 0; i < xf86_config->num_crtc; i++) {
+		xf86CrtcPtr crtc = xf86_config->crtc[i];
+
+		if (!crtc->enabled)
+			continue;
+
+		drmmode_set_mode_major(crtc, &crtc->mode,
+				       crtc->rotation, crtc->x, crtc->y);
+	}
+
+	if (old_fb_id)
+		drmModeRmFB(drmmode->fd, old_fb_id);
+	if (old_front)
+                radeon_free_memory(scrn, old_front);
+
+	return TRUE;
+
+ fail:
+	if (info->mm.front_buffer)
+		radeon_free_memory(scrn, info->mm.front_buffer);
+	info->mm.front_buffer = old_front;
+	scrn->virtualX = old_width;
+	scrn->virtualY = old_height;
+	scrn->displayWidth = old_pitch;
+	drmmode->fb_id = old_fb_id;
+
+	return FALSE;
+}
+
+static const xf86CrtcConfigFuncsRec drmmode_xf86crtc_config_funcs = {
+	drmmode_xf86crtc_resize
+};
+
+
 Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, char *busId, char *driver_name, int cpp)
 {
 	xf86CrtcConfigPtr   xf86_config;
@@ -696,7 +771,7 @@ Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, char *busId, char 
 	for (i = 0; i < drmmode->mode_res->count_connectors; i++)
 		drmmode_output_init(pScrn, drmmode, i);
 
-	xf86InitialConfiguration(pScrn, FALSE);
+	xf86InitialConfiguration(pScrn, TRUE);
 
 	return TRUE;
 }
@@ -760,40 +835,6 @@ Bool drmmode_is_rotate_pixmap(ScrnInfoPtr pScrn, pointer pPixData, dri_bo **bo)
 	}
 	return FALSE;
 
-}
-
-static Bool drmmode_resize_fb(ScrnInfoPtr scrn, drmmode_ptr drmmode, int width, int height)
-{
-	uint32_t handle;
-	int pitch;
-	int ret;
-
-	return FALSE;
-
-	if (drmmode->mode_fb->width == width && drmmode->mode_fb->height == height)
-		return TRUE;
-
-	if (!drmmode->create_new_fb)
-		return FALSE;
-
-	handle = drmmode->create_new_fb(scrn, width, height, &pitch);
-	if (handle == 0)
-		return FALSE;
-
-	ret = drmModeReplaceFB(drmmode->fd, drmmode->fb_id, 
-			       width, height,
-			       scrn->depth, scrn->bitsPerPixel, pitch,
-			       handle);
-
-	if (ret)
-		return FALSE;
-
-	drmModeFreeFB(drmmode->mode_fb);
-	drmmode->mode_fb = drmModeGetFB(drmmode->fd, drmmode->fb_id);
-	if (!drmmode->mode_fb)
-		return FALSE;
-	
-	return TRUE;
 }
 
 void drmmode_adjust_frame(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int x, int y, int flags)

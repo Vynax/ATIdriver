@@ -965,6 +965,7 @@ typedef struct {
     drmmode_rec drmmode;
 #endif
 
+    int can_resize;
     dri_bufmgr *bufmgr;
 } RADEONInfoRec, *RADEONInfoPtr;
 
@@ -1227,7 +1228,6 @@ extern Bool radeon_bind_all_memory(ScrnInfoPtr pScrn);
 extern Bool radeon_unbind_all_memory(ScrnInfoPtr pScrn);
 extern struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int size, int alignment, Bool no_backing_store, char *name, 
 						    int need_bind);
-uint32_t radeon_create_new_fb(ScrnInfoPtr pScrn, int width, int height, int *pitch);
 int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
 void radeon_unmap_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
 void radeon_free_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
@@ -1236,8 +1236,9 @@ Bool radeon_free_all_memory(ScrnInfoPtr pScrn);
 Bool radeon_setup_kernel_mem(ScreenPtr pScreen);
 Bool RADEONDRIDoMappings(ScreenPtr pScreen);
 Bool radeon_update_dri_buffers(ScreenPtr pScreen);
-Bool radeon_setup_gart_mem(ScreenPtr pScreen);
 
+dri_bo *radeon_get_pixmap_bo(PixmapPtr pPix);
+void radeon_set_pixmap_bo(PixmapPtr pPix, struct radeon_memory *mem);
 #ifdef XF86DRI
 #  ifdef USE_XAA
 /* radeon_accelfuncs.c */

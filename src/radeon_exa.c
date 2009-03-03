@@ -46,10 +46,6 @@
 #include "xf86.h"
 #include "radeon_bufmgr_gem.h"
 
-#define RADEON_PIXMAP_IS_FRONTBUFFER 1
-
-/* quick hacks lolz */
-
 /***********************************************************************/
 #define RINFO_FROM_SCREEN(pScr) ScrnInfoPtr pScrn =  xf86Screens[pScr->myNum]; \
     RADEONInfoPtr info   = RADEONPTR(pScrn)
@@ -448,18 +444,60 @@ static Bool RADEONEXAModifyPixmapHeader(PixmapPtr pPixmap, int width, int height
     	return TRUE;
     }
 
+#if 0
     if (pPixData == info->mm.front_buffer->map) {
-	driver_priv->flags |= RADEON_PIXMAP_IS_FRONTBUFFER;
+	if (driver_priv->bo)
+	  dri_bo_unreference(driver_priv->bo);
 
 	driver_priv->bo = radeon_bo_gem_create_from_name(info->bufmgr, "front",
 							 radeon_name_buffer(pScrn, info->mm.front_buffer));
+
+	if (!driver_priv->bo)
+	  return FALSE;
 
 	miModifyPixmapHeader(pPixmap, width, height, depth,
                              bitsPerPixel, devKind, NULL);
 	return TRUE;
     }
+#endif
     return FALSE;
 }
+
+dri_bo *radeon_get_pixmap_bo(PixmapPtr pPix)
+{
+    ScrnInfoPtr pScrn = xf86Screens[pPix->drawable.pScreen->myNum];
+    RADEONInfoPtr info = RADEONPTR(pScrn);
+    
+#ifdef XF86DRM_MODE
+    struct radeon_exa_pixmap_priv *driver_priv;
+    driver_priv = exaGetPixmapDriverPrivate(pPix);
+    if (driver_priv)
+	if (driver_priv->bo)
+ 	    return driver_priv->bo;
+#endif
+    return NULL;
+
+}
+
+void radeon_set_pixmap_bo(PixmapPtr pPix, struct radeon_memory *mem)
+{
+    ScrnInfoPtr pScrn = xf86Screens[pPix->drawable.pScreen->myNum];
+    RADEONInfoPtr info = RADEONPTR(pScrn);
+    
+#ifdef XF86DRM_MODE
+    struct radeon_exa_pixmap_priv *driver_priv;
+
+    driver_priv = exaGetPixmapDriverPrivate(pPix);
+    if (driver_priv) {
+	if (driver_priv->bo)
+	    dri_bo_unreference(driver_priv->bo);
+
+	driver_priv->bo = radeon_bo_gem_create_from_name(info->bufmgr, "front",
+							 radeon_name_buffer(pScrn, mem));
+    }
+#endif
+}
+    
 
 static Bool RADEONEXAPixmapIsOffscreen(PixmapPtr pPix)
 {

@@ -1722,6 +1722,10 @@ Bool RADEONDRIDoMappings(ScreenPtr pScreen)
     if (info->ChipFamily >= CHIP_FAMILY_R600)
 	return TRUE;
 
+    if (info->dri2.enabled)
+	return TRUE;
+
+    pSAREAPriv = DRIGetSAREAPrivate(pScreen);
     if (!RADEONDRIMapInit(info, pScreen)) {
 	RADEONDRICloseScreen(pScreen);
 	return FALSE;
@@ -2620,9 +2624,4 @@ static Bool radeon_dri_gart_init(ScreenPtr pScreen)
     RADEONInfoPtr  info    = RADEONPTR(pScrn);
 
     RADEONDRIInitGARTValues(info);
-
-    /* so we want to allocate the buffers/gart texmap */
-    /* ignore ring stuff */
-    return radeon_setup_gart_mem(pScreen);
-
 }

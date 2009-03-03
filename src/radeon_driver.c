@@ -253,6 +253,13 @@ RADEONCreateScreenResources (ScreenPtr pScreen)
 		      radeonShadowWindow, 0, NULL))
 	   return FALSE;
    }
+
+   if (info->dri2.enabled) {
+       if (info->mm.front_buffer->kernel_bo_handle) {
+	   PixmapPtr pPix = pScreen->GetScreenPixmap(pScreen);
+	   radeon_set_pixmap_bo(pPix, info->mm.front_buffer);
+       }
+   }
    return TRUE;
 }
 
@@ -3139,7 +3146,6 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 	    goto fail;
 	}
 
-	info->drmmode.create_new_fb = radeon_create_new_fb;
 	info->dri->drmFD = info->drmmode.fd;
     info->dri2.drm_fd = info->drmmode.fd;
     info->dri2.enabled = FALSE;
