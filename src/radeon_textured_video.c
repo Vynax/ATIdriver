@@ -627,7 +627,7 @@ RADEONPutImageTextured(ScrnInfoPtr pScrn,
 #ifdef XF86DRI
     if (IS_R600_3D)
 	R600DisplayTexturedVideo(pScrn, pPriv);
-    if (info->directRenderingEnabled || info->drm_mode_setting)
+    else if (info->directRenderingEnabled || info->drm_mode_setting)
 	RADEONDisplayTexturedVideoCP(pScrn, pPriv);
     else
 #endif
