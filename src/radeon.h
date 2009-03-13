@@ -1238,7 +1238,8 @@ Bool RADEONDRIDoMappings(ScreenPtr pScreen);
 Bool radeon_update_dri_buffers(ScreenPtr pScreen);
 
 dri_bo *radeon_get_pixmap_bo(PixmapPtr pPix);
-void radeon_set_pixmap_bo(PixmapPtr pPix, struct radeon_memory *mem);
+void radeon_set_pixmap_mem(PixmapPtr pPix, struct radeon_memory *mem);
+void radeon_set_pixmap_bo(PixmapPtr pPix, dri_bo *bo);
 #ifdef XF86DRI
 #  ifdef USE_XAA
 /* radeon_accelfuncs.c */

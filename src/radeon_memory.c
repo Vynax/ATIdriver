@@ -383,14 +383,4 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     return TRUE;
 }
 
-dri_bo *radeon_create_rotate_bo(ScrnInfoPtr pScrn, int size)
-{
-	RADEONInfoPtr info = RADEONPTR(pScrn);
-	dri_bo *bo;
-
-	bo = dri_bo_alloc(info->bufmgr, "rotate", size, 0, 0);
-
-	dri_bo_pin(bo, RADEON_GEM_DOMAIN_VRAM);
-	return bo;
-}
 

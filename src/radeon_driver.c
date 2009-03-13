@@ -257,7 +257,7 @@ RADEONCreateScreenResources (ScreenPtr pScreen)
    if (info->dri2.enabled) {
        if (info->mm.front_buffer->kernel_bo_handle) {
 	   PixmapPtr pPix = pScreen->GetScreenPixmap(pScreen);
-	   radeon_set_pixmap_bo(pPix, info->mm.front_buffer);
+	   radeon_set_pixmap_mem(pPix, info->mm.front_buffer);
        }
    }
    return TRUE;

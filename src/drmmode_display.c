@@ -334,7 +334,7 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 	if (rotate_bo == NULL)
 		return NULL;
 
-	dri_bo_pin(rotate_bo, RADEON_GEM_DOMAIN_VRAM);
+	//dri_bo_pin(rotate_bo, RADEON_GEM_DOMAIN_VRAM);
 	dri_bo_map(rotate_bo, 1);
 
 	ret = drmModeAddFB(drmmode->fd, width, height, crtc->scrn->depth,
@@ -373,6 +373,9 @@ drmmode_crtc_shadow_create(xf86CrtcPtr crtc, void *data, int width, int height)
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
 			   "Couldn't allocate shadow pixmap for rotated CRTC\n");
 	}
+
+	if (drmmode_crtc->rotate_bo)
+		radeon_set_pixmap_bo(rotate_pixmap, drmmode_crtc->rotate_bo);
 	return rotate_pixmap;
 
 }
@@ -389,6 +392,7 @@ drmmode_crtc_shadow_destroy(xf86CrtcPtr crtc, PixmapPtr rotate_pixmap, void *dat
 	if (data) {
 		drmModeRmFB(drmmode->fd, drmmode_crtc->rotate_fb_id);
 		drmmode_crtc->rotate_fb_id = 0;
+		dri_bo_unmap(drmmode_crtc->rotate_bo);
 		dri_bo_unreference(drmmode_crtc->rotate_bo);
 		drmmode_crtc->rotate_bo = NULL;
 	}
@@ -706,7 +710,7 @@ drmmode_xf86crtc_resize (ScrnInfoPtr scrn, int width, int height)
 	if (ret)
 		goto fail;
 
-	radeon_set_pixmap_bo(screen->GetScreenPixmap(screen), info->mm.front_buffer);
+	radeon_set_pixmap_mem(screen->GetScreenPixmap(screen), info->mm.front_buffer);
 	screen->ModifyPixmapHeader(screen->GetScreenPixmap(screen),
 				   width, height, -1, -1, pitch * cpp, NULL);
 

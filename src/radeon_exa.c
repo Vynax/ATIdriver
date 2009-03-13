@@ -184,6 +184,8 @@ Bool RADEONGetPixmapOffsetPitch(PixmapPtr pPix, uint32_t *pitch_offset)
 	int bpp;
 	struct radeon_exa_pixmap_priv *driver_priv;
 
+    	driver_priv = exaGetPixmapDriverPrivate(pPix);
+
 	bpp = pPix->drawable.bitsPerPixel;
 	if (bpp == 24)
 		bpp = 8;
@@ -434,7 +436,6 @@ static Bool RADEONEXAModifyPixmapHeader(PixmapPtr pPixmap, int width, int height
     if (!driver_priv)
 	return FALSE;
 
-
     if (info->drm_mode_setting && drmmode_is_rotate_pixmap(pScrn, pPixData, &driver_priv->bo)){
 	dri_bo_unmap(driver_priv->bo);
 	dri_bo_reference(driver_priv->bo);
@@ -479,7 +480,25 @@ dri_bo *radeon_get_pixmap_bo(PixmapPtr pPix)
 
 }
 
-void radeon_set_pixmap_bo(PixmapPtr pPix, struct radeon_memory *mem)
+void radeon_set_pixmap_bo(PixmapPtr pPix, dri_bo *bo)
+{
+    ScrnInfoPtr pScrn = xf86Screens[pPix->drawable.pScreen->myNum];
+    RADEONInfoPtr info = RADEONPTR(pScrn);
+#ifdef XF86DRM_MODE
+    struct radeon_exa_pixmap_priv *driver_priv;
+
+    driver_priv = exaGetPixmapDriverPrivate(pPix);
+    if (driver_priv) {
+	if (driver_priv->bo)
+	    dri_bo_unreference(driver_priv->bo);
+
+	dri_bo_reference(bo);
+	driver_priv->bo = bo;
+    }
+#endif
+
+}
+void radeon_set_pixmap_mem(PixmapPtr pPix, struct radeon_memory *mem)
 {
     ScrnInfoPtr pScrn = xf86Screens[pPix->drawable.pScreen->myNum];
     RADEONInfoPtr info = RADEONPTR(pScrn);
