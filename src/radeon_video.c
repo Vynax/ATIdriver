@@ -297,7 +297,10 @@ void RADEONInitVideo(ScreenPtr pScreen)
 	RADEONInitOffscreenImages(pScreen);
     }
 
-    if ((info->ChipFamily < CHIP_FAMILY_RS400)
+    if (info->ChipFamily >= CHIP_FAMILY_R600 && info->drm_mode_setting) {
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		   "Disabling textured video for KMS On R600+\n");
+    } else if ((info->ChipFamily < CHIP_FAMILY_RS400)
 #ifdef XF86DRI
 	|| (info->directRenderingEnabled || info->drm_mode_setting)
 #endif

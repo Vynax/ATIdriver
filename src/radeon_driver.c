@@ -2068,6 +2068,15 @@ static Bool RADEONPreInitAccel(ScrnInfoPtr pScrn)
     }
     info->accel_state->fifo_slots                 = 0;
 
+    if (info->drm_mode_setting && info->ChipFamily >= CHIP_FAMILY_R600) {
+	xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+		   "Using shadowfb for KMS on R600+\n");
+	info->r600_shadow_fb = TRUE;
+	if (!xf86LoadSubModule(pScrn, "shadow"))
+	    info->r600_shadow_fb = FALSE;
+	return TRUE;
+    }
+
     if ((info->ChipFamily == CHIP_FAMILY_RS100) ||
 	(info->ChipFamily == CHIP_FAMILY_RS200) ||
 	(info->ChipFamily == CHIP_FAMILY_RS300) ||

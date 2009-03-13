@@ -153,6 +153,9 @@ copy_fb_contents (drmmode_ptr drmmode,
 	PixmapPtr src_pixmap, dest_pixmap;
 	ScreenPtr pScreen = pScrn->pScreen;
 
+	if (info->ChipFamily >= CHIP_FAMILY_R600)
+		return;
+
 	dest_fb = drmModeGetFB(drmmode->fd, dest_id);
 	src_fb = drmModeGetFB(drmmode->fd, src_id);
 	if (src_fb == NULL || dest_fb == NULL) {
