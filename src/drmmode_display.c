@@ -41,7 +41,7 @@
 
 static void
 drmmode_ConvertFromKMode(ScrnInfoPtr	scrn,
-		     struct drm_mode_modeinfo *kmode,
+		     drmModeModeInfo *kmode,
 		     DisplayModePtr	mode)
 {
 	memset(mode, 0, sizeof(DisplayModeRec));
@@ -73,7 +73,7 @@ drmmode_ConvertFromKMode(ScrnInfoPtr	scrn,
 
 static void
 drmmode_ConvertToKMode(ScrnInfoPtr	scrn,
-		     struct drm_mode_modeinfo *kmode,
+		     drmModeModeInfo *kmode,
 		     DisplayModePtr	mode)
 {
 	memset(kmode, 0, sizeof(*kmode));
@@ -192,7 +192,7 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 	Bool ret = TRUE;
 	int i;
 	int fb_id;
-	struct drm_mode_modeinfo kmode;
+	drmModeModeInfo kmode;
 
 	saved_mode = crtc->mode;
 	saved_x = crtc->x;
