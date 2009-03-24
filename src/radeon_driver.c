@@ -1835,13 +1835,9 @@ static Bool RADEONPreInitChipType(ScrnInfoPtr pScrn)
                    "R500 support is under development. Please report any issues to xorg-driver-ati@lists.x.org\n");
     }
 
-    from               = X_PROBED;
-    info->LinearAddr   = PCI_REGION_BASE(info->PciInfo, 0, REGION_MEM) & ~0x1ffffffUL;
-    pScrn->memPhysBase = info->LinearAddr;
-
     if (!info->drm_mode_setting) {
 	from               = X_PROBED;
-	info->LinearAddr   = PCI_REGION_BASE(info->PciInfo, 0, REGION_MEM) & ~0x1ffffffUL;
+	info->LinearAddr   = PCI_REGION_BASE(info->PciInfo, 0, REGION_MEM) & ~0x1ffffffULL;
 	pScrn->memPhysBase = info->LinearAddr;
 	if (dev->MemBase) {
 	    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
