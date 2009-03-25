@@ -102,10 +102,7 @@ avivo_setup_cursor(xf86CrtcPtr crtc, Bool enable)
 
     if (enable) {
 
-	if (info->drm_mm)
-	    location = info->fbLocation + radeon_crtc->cursor->offset;
-	else
-	    location = info->fbLocation + radeon_crtc->cursor_offset + pScrn->fbOffset;
+	location = info->fbLocation + radeon_crtc->cursor_offset + pScrn->fbOffset;
 
 	OUTREG(AVIVO_D1CUR_SURFACE_ADDRESS + radeon_crtc->crtc_offset,
 	       location);
@@ -241,10 +238,7 @@ radeon_crtc_set_cursor_position (xf86CrtcPtr crtc, int x, int y)
 					       | (yorigin ? 0 : y)));
 	    RADEONCTRACE(("cursor_offset: 0x%x, yorigin: %d, stride: %d, temp %08X\n",
 			  radeon_crtc->cursor_offset + pScrn->fbOffset, yorigin, stride, temp));
-	    if (info->drm_mm)
-		offset = radeon_crtc->cursor->offset;
-	    else
-		offset = radeon_crtc->cursor_offset + pScrn->fbOffset;
+	    offset = radeon_crtc->cursor_offset + pScrn->fbOffset;
 	    OUTREG(RADEON_CUR_OFFSET,
 		   offset + yorigin * stride);
 	} else if (crtc_id == 1) {
@@ -256,10 +250,7 @@ radeon_crtc_set_cursor_position (xf86CrtcPtr crtc, int x, int y)
 						| (yorigin ? 0 : y)));
 	    RADEONCTRACE(("cursor_offset2: 0x%x, yorigin: %d, stride: %d, temp %08X\n",
 			  radeon_crtc->cursor_offset + pScrn->fbOffset, yorigin, stride, temp));
-	    if (info->drm_mm)
-		offset = radeon_crtc->cursor->offset;
-	    else
-		offset = radeon_crtc->cursor_offset + pScrn->fbOffset;
+	    offset = radeon_crtc->cursor_offset + pScrn->fbOffset;
 	    OUTREG(RADEON_CUR2_OFFSET,
 		   offset + yorigin * stride);
 	}
@@ -319,10 +310,7 @@ radeon_crtc_load_cursor_argb (xf86CrtcPtr crtc, CARD32 *image)
 
     RADEONCTRACE(("RADEONLoadCursorARGB\n"));
 
-    if (info->drm_mm) 
-      d = (uint32_t *)radeon_crtc->cursor->map;
-    else
-      d = (uint32_t *)(pointer)(info->FB + radeon_crtc->cursor_offset);
+    d = (uint32_t *)(pointer)(info->FB + radeon_crtc->cursor_offset);
 
     info->cursor_argb = TRUE;
 
@@ -354,7 +342,7 @@ Bool RADEONCursorInit(ScreenPtr pScreen)
     height      = ((size_bytes * xf86_config->num_crtc) + width_bytes - 1) / width_bytes;
     int align = IS_AVIVO_VARIANT ? 4096 : 256;
 
-    if (!info->useEXA && !info->drm_mm) {
+    if (!info->useEXA) {
 	for (c = 0; c < xf86_config->num_crtc; c++) {
 	    xf86CrtcPtr crtc = xf86_config->crtc[c];
 	    RADEONCrtcPrivatePtr radeon_crtc = crtc->driver_private;
