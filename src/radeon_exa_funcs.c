@@ -392,7 +392,6 @@ FUNC_NAME(RADEONDoneCopy)(PixmapPtr pDst)
 
 #ifdef ACCEL_CP
 
-#if 0
 static Bool
 RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 		       char *src, int src_pitch)
@@ -406,46 +405,18 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 
     TRACE;
 
+    if (info->new_cs)
+	return FALSE;
+
     if (bpp < 8)
 	return FALSE;
 
-    if (info->new_cs){
-
-	if (info->drm_mm) {
-	    uint32_t offset, bo_width, bo_height = h;
-
-	    driver_priv = exaGetPixmapDriverPrivate(pDst);
-	    if (!driver_priv)
-		return FALSE;
-
-
-	    if (radeon_bufmgr_gem_has_references(driver_priv->bo))
-		RADEONCPFlushIndirect(pScrn, 0);
-
-	    radeon_bufmgr_gem_wait_rendering(driver_priv->bo);
-
-	    /* use pwrites - maybe require some sort of fallback */
-	    bo_width = w * (bpp / 8);
-	    offset = (x * bpp / 8) + (y * dst_pitch);
-
-	    while (bo_height--) {
-		dri_bo_subdata(driver_priv->bo, offset, bo_width,
-				     src);
-		    
-		src += src_pitch;
-		offset += dst_pitch;
-	    }
-
-	    return TRUE;
-	}
-    }
     if (!info->directRenderingEnabled && !info->drm_mode_setting)
         goto fallback;
 
     if (!RADEONGetPixmapOffsetPitch(pDst, &dst_pitch_off))
         goto fallback;
 
-    if (!info->new_cs)
     {
         uint8_t *buf;
 	int cpp = bpp / 8;
@@ -467,10 +438,9 @@ RADEONUploadToScreenCP(PixmapPtr pDst, int x, int y, int w, int h,
 	exaMarkSync(pDst->drawable.pScreen);
 	return TRUE;
     }
-
+fallback:
     return FALSE;
 }
-#endif
 
 /* Emit blit with arbitrary source and destination offsets and pitches */
 static void
@@ -825,7 +795,7 @@ Bool FUNC_NAME(RADEONDrawInit)(ScreenPtr pScreen)
     info->accel_state->exa->MarkSync = FUNC_NAME(RADEONMarkSync);
     info->accel_state->exa->WaitMarker = FUNC_NAME(RADEONSync);
 #ifdef ACCEL_CP
-  //  info->accel_state->exa->UploadToScreen = RADEONUploadToScreenCP;
+    info->accel_state->exa->UploadToScreen = RADEONUploadToScreenCP;
     if (info->accelDFS)
 	info->accel_state->exa->DownloadFromScreen = RADEONDownloadFromScreenCP;
 #endif
