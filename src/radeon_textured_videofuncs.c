@@ -1659,13 +1659,19 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	if (RADEONTilingEnabled(pScrn, pPixmap))
 	    colorpitch |= RADEON_COLOR_TILE_ENABLE;
 
-	BEGIN_ACCEL(4);
+	qwords = info->new_cs ? 5 : 4;
+	BEGIN_ACCEL(qwords);
 
 	OUT_ACCEL_REG(RADEON_RB3D_CNTL,
 		      dst_format /*| RADEON_ALPHA_BLEND_ENABLE*/);
 
-	dst_offset += info->fbLocation + pScrn->fbOffset;
-	OUT_ACCEL_REG(RADEON_RB3D_COLOROFFSET, dst_offset);
+	if (info->new_cs) {
+	    OUT_ACCEL_REG(RADEON_RB3D_COLOROFFSET, 0);
+	    OUT_RELOC(dst_bo, 0, RADEON_GEM_DOMAIN_VRAM);
+	} else {
+	    dst_offset += info->fbLocation + pScrn->fbOffset;
+	    OUT_ACCEL_REG(RADEON_RB3D_COLOROFFSET, dst_offset);
+	}
 
 	OUT_ACCEL_REG(RADEON_RB3D_COLORPITCH, colorpitch);
 
