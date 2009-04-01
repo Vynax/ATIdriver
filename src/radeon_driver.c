@@ -5865,11 +5865,9 @@ Bool RADEONEnterVT(int scrnIndex, int flags)
 
     } else {
 	int ret;
-	if (info->drm_mode_setting) {
-		ret = ioctl(info->dri->drmFD, DRM_IOCTL_SET_MASTER, NULL);
-		if (ret == -EINVAL)
-			ErrorF("Unable to retrieve master\n");
-	}
+	ret = ioctl(info->dri->drmFD, DRM_IOCTL_SET_MASTER, NULL);
+	if (ret == -EINVAL)
+		ErrorF("Unable to retrieve master\n");
     }
 
     if (info->drm_mm) {
@@ -5961,7 +5959,7 @@ void RADEONLeaveVT(int scrnIndex, int flags)
     xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
 		   "RADEONLeaveVT\n");
 #ifdef XF86DRI
-    if (RADEONPTR(pScrn)->directRenderingInited) {
+    if (info->directRenderingInited || info->dri2.enabled) {
 	if (!info->drm_mode_setting) {
 	    RADEONDRISetVBlankInterrupt (pScrn, FALSE);
 	    DRILock(pScrn->pScreen, 0);
