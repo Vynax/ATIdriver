@@ -87,6 +87,15 @@ do {								\
 
 #endif /* !ACCEL_CP */
 
+#define OUT_TEXTURE_REG(reg, offset, bo) do {	\
+	if (info->new_cs) {		  \
+	    OUT_ACCEL_REG((reg), (offset));				\
+	    OUT_RELOC((bo), RADEON_GEM_DOMAIN_VRAM | RADEON_GEM_DOMAIN_GTT, 0); \
+	} else { \
+	    OUT_ACCEL_REG((reg), (offset) + info->fbLocation + pScrn->fbOffset);} \
+    } while(0)
+
+
 static void
 FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv)
 {
@@ -265,7 +274,10 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	if (IS_R500_3D && ((pPriv->h - 1) & 0x800))
 	    txpitch |= R500_TXHEIGHT_11;
 
-	txoffset = pPriv->src_offset;
+	if (info->new_cs)
+		txoffset = 0;
+	else
+		txoffset = pPriv->src_offset;
 
 	qwords = info->new_cs ? 7 : 6;
 	BEGIN_ACCEL(qwords);
@@ -274,13 +286,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	OUT_ACCEL_REG(R300_TX_FORMAT0_0, txformat0);
 	OUT_ACCEL_REG(R300_TX_FORMAT1_0, txformat1);
 	OUT_ACCEL_REG(R300_TX_FORMAT2_0, txpitch);
-	if (info->new_cs) {
-	    OUT_ACCEL_REG(R300_TX_OFFSET_0, 0);
-	    OUT_RELOC(pPriv->src_bo, RADEON_GEM_DOMAIN_VRAM | RADEON_GEM_DOMAIN_GTT, 0);
-	} else {
-	    txoffset += info->fbLocation + pScrn->fbOffset;
-	    OUT_ACCEL_REG(R300_TX_OFFSET_0, txoffset);
-	}
+	OUT_TEXTURE_REG(R300_TX_OFFSET_0, txoffset, pPriv->src_bo);
 	FINISH_ACCEL();
 
 	txenable = R300_TEX_0_ENABLE;
@@ -296,19 +302,22 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			R300_TX_MIN_FILTER_LINEAR |
 			R300_TX_MAG_FILTER_LINEAR);
 
-		BEGIN_ACCEL(12);
+		qwords = info->new_cs ? 14 : 12;
+		BEGIN_ACCEL(qwords);
 		OUT_ACCEL_REG(R300_TX_FILTER0_1, txfilter | (1 << R300_TX_ID_SHIFT));
 		OUT_ACCEL_REG(R300_TX_FILTER1_1, 0);
 		OUT_ACCEL_REG(R300_TX_FORMAT0_1, txformat0);
 		OUT_ACCEL_REG(R300_TX_FORMAT1_1, R300_TX_FORMAT_X8 | R300_TX_FORMAT_CACHE_FOURTH_REGION_2);
 		OUT_ACCEL_REG(R300_TX_FORMAT2_1, txpitch);
-		OUT_ACCEL_REG(R300_TX_OFFSET_1, txoffset + pPriv->planeu_offset);
+		OUT_TEXTURE_REG(R300_TX_OFFSET_1, txoffset + pPriv->planeu_offset, pPriv->src_bo);
+
 		OUT_ACCEL_REG(R300_TX_FILTER0_2, txfilter | (2 << R300_TX_ID_SHIFT));
 		OUT_ACCEL_REG(R300_TX_FILTER1_2, 0);
 		OUT_ACCEL_REG(R300_TX_FORMAT0_2, txformat0);
 		OUT_ACCEL_REG(R300_TX_FORMAT1_2, R300_TX_FORMAT_X8 | R300_TX_FORMAT_CACHE_FOURTH_REGION_3);
 		OUT_ACCEL_REG(R300_TX_FORMAT2_2, txpitch);
-		OUT_ACCEL_REG(R300_TX_OFFSET_2, txoffset + pPriv->planev_offset);
+		OUT_TEXTURE_REG(R300_TX_OFFSET_2, txoffset + pPriv->planev_offset, pPriv->src_bo);
+
 		FINISH_ACCEL();
 		txenable |= R300_TEX_1_ENABLE | R300_TEX_2_ENABLE;
 	}
@@ -1592,7 +1601,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	    }
 	}
 
-	qwords = info->new_cs ? 7 : 6;
+	qwords = info->new_cs ? 8 : 6;
 	BEGIN_ACCEL(qwords);
 	OUT_ACCEL_REG(R300_TX_INVALTAGS, 0);
 	OUT_ACCEL_REG(R300_TX_ENABLE, txenable);
@@ -1695,7 +1704,8 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			    R200_CLAMP_S_CLAMP_LAST |
 			    R200_CLAMP_T_CLAMP_LAST;
 
-		BEGIN_ACCEL(36);
+		qwords = info->new_cs ? 39 : 36;
+		BEGIN_ACCEL(qwords);
 
 		OUT_ACCEL_REG(RADEON_PP_CNTL,
 			      RADEON_TEX_0_ENABLE | RADEON_TEX_1_ENABLE | RADEON_TEX_2_ENABLE |
@@ -1714,24 +1724,22 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			      (pPriv->w - 1) |
 			      ((pPriv->h - 1) << RADEON_TEX_VSIZE_SHIFT));
 		OUT_ACCEL_REG(R200_PP_TXPITCH_0, pPriv->src_pitch - 32);
-	    	OUT_ACCEL_REG(R200_PP_TXOFFSET_0, pPriv->src_offset +
-				  info->fbLocation + pScrn->fbOffset);
+		OUT_TEXTURE_REG(R200_PP_TXOFFSET_0, txoffset, pPriv->src_bo);
 
 		OUT_ACCEL_REG(R200_PP_TXFILTER_1, txfilter);
 		OUT_ACCEL_REG(R200_PP_TXFORMAT_1, txformat | R200_TXFORMAT_ST_ROUTE_STQ1);
 		OUT_ACCEL_REG(R200_PP_TXFORMAT_X_1, 0);
 		OUT_ACCEL_REG(R200_PP_TXSIZE_1, txformat0);
 		OUT_ACCEL_REG(R200_PP_TXPITCH_1, txpitch);
-	    	OUT_ACCEL_REG(R200_PP_TXOFFSET_1, pPriv->src_offset + pPriv->planeu_offset +
-				  info->fbLocation + pScrn->fbOffset);
+		OUT_TEXTURE_REG(R200_PP_TXOFFSET_1, txoffset + pPriv->planeu_offset, pPriv->src_bo);
 
 		OUT_ACCEL_REG(R200_PP_TXFILTER_2, txfilter);
 		OUT_ACCEL_REG(R200_PP_TXFORMAT_2, txformat | R200_TXFORMAT_ST_ROUTE_STQ1);
 		OUT_ACCEL_REG(R200_PP_TXFORMAT_X_2, 0);
 		OUT_ACCEL_REG(R200_PP_TXSIZE_2, txformat0);
 		OUT_ACCEL_REG(R200_PP_TXPITCH_2, txpitch);
-	    	OUT_ACCEL_REG(R200_PP_TXOFFSET_2, pPriv->src_offset + pPriv->planev_offset +
-				  info->fbLocation + pScrn->fbOffset);
+
+		OUT_TEXTURE_REG(R200_PP_TXOFFSET_2, txoffset + pPriv->planev_offset, pPriv->src_bo);
 
 		/* similar to r300 code. Note the big problem is that hardware constants
 		 * are 8 bits only, representing 0.0-1.0. We can get that up (using bias
@@ -1867,7 +1875,8 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			    R200_CLAMP_S_CLAMP_LAST |
 			    R200_CLAMP_T_CLAMP_LAST;
 
-		BEGIN_ACCEL(24);
+		qwords = info->new_cs ? 25 : 24;
+		BEGIN_ACCEL(qwords);
 
 		OUT_ACCEL_REG(RADEON_PP_CNTL,
 			      RADEON_TEX_0_ENABLE |
@@ -1885,8 +1894,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			      (pPriv->w - 1) |
 			      ((pPriv->h - 1) << RADEON_TEX_VSIZE_SHIFT));
 		OUT_ACCEL_REG(R200_PP_TXPITCH_0, pPriv->src_pitch - 32);
-	    	OUT_ACCEL_REG(R200_PP_TXOFFSET_0, pPriv->src_offset +
-				  info->fbLocation + pScrn->fbOffset);
+		OUT_TEXTURE_REG(R200_PP_TXOFFSET_0, txoffset, pPriv->src_bo);
 
 		/* MAD temp1 / 2, const0.a * 2, temp0.ggg, -const0.rgb */
 		OUT_ACCEL_REG(R200_PP_TXCBLEND_0,
@@ -1970,7 +1978,8 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 		FINISH_ACCEL();
 	    }
 	    else {
-		BEGIN_ACCEL(13);
+		qwords = info->new_cs ? 14 : 13;
+		BEGIN_ACCEL(qwords);
 		OUT_ACCEL_REG(RADEON_PP_CNTL,
 			      RADEON_TEX_0_ENABLE | RADEON_TEX_BLEND_0_ENABLE);
 
@@ -1991,8 +2000,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			      ((pPriv->h - 1) << RADEON_TEX_VSIZE_SHIFT));
 		OUT_ACCEL_REG(R200_PP_TXPITCH_0, pPriv->src_pitch - 32);
 
-	    	OUT_ACCEL_REG(R200_PP_TXOFFSET_0, pPriv->src_offset +
-				  info->fbLocation + pScrn->fbOffset);
+		OUT_TEXTURE_REG(R200_PP_TXOFFSET_0, txoffset, pPriv->src_bo);
 
 		OUT_ACCEL_REG(R200_PP_TXCBLEND_0,
 			      R200_TXC_ARG_A_ZERO |
@@ -2015,7 +2023,8 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	    info->accel_state->texW[0] = 1;
 	    info->accel_state->texH[0] = 1;
 
-	    BEGIN_ACCEL(9);
+	    qwords = info->new_cs ? 10 : 9;
+	    BEGIN_ACCEL(qwords);
 
 	    OUT_ACCEL_REG(RADEON_PP_CNTL,
 			  RADEON_TEX_0_ENABLE | RADEON_TEX_BLEND_0_ENABLE);
@@ -2031,8 +2040,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			  RADEON_YUV_TO_RGB);
 
 	    OUT_ACCEL_REG(RADEON_PP_TXFORMAT_0, txformat);
-	    OUT_ACCEL_REG(RADEON_PP_TXOFFSET_0, pPriv->src_offset +
-			  info->fbLocation + pScrn->fbOffset);
+	    OUT_TEXTURE_REG(RADEON_PP_TXOFFSET_0, txoffset, pPriv->src_bo);
 	    OUT_ACCEL_REG(RADEON_PP_TXCBLEND_0,
 			  RADEON_COLOR_ARG_A_ZERO |
 			  RADEON_COLOR_ARG_B_ZERO |
