@@ -502,12 +502,12 @@ RADEONPutImageTextured(ScrnInfoPtr pScrn,
 	    if (info->DMAForXv) {
 		if (id == FOURCC_YV12)
 		    R600CopyPlanarHW(pScrn, buf, buf + s3offset, buf + s2offset,
-				     pPriv->src_offset + info->fbLocation + pScrn->fboffset,
+				     pPriv->src_offset + info->fbLocation + pScrn->fbOffset,
 				     srcPitch, srcPitch2, pPriv->src_pitch,
 				     width, height);
 		else
 		    R600CopyPlanarHW(pScrn, buf, buf + s2offset, buf + s3offset,
-				     pPriv->src_offset + info->fbLocation + pScrn->fboffset,
+				     pPriv->src_offset + info->fbLocation + pScrn->fbOffset,
 				     srcPitch, srcPitch2, pPriv->src_pitch,
 				     width, height);
 	    } else {
@@ -569,7 +569,7 @@ RADEONPutImageTextured(ScrnInfoPtr pScrn,
     default:
 	if (info->ChipFamily >= CHIP_FAMILY_R600) {
 	    if (info->DMAForXv)
-		R600CopyPackedHW(pScrn, buf, pPriv->src_offset + info->fbLocation + pScrn->fboffset,
+		R600CopyPackedHW(pScrn, buf, pPriv->src_offset + info->fbLocation + pScrn->fbOffset,
 				 2 * width, pPriv->src_pitch,
 				 width, height);
 	    else
