@@ -423,6 +423,24 @@ void RADEONEngineRestore(ScrnInfoPtr pScrn)
     info->accel_state->XInited3D = FALSE;
 }
 
+static int RADEONDRMGetNumPipes(ScrnInfoPtr pScrn, int *num_pipes)
+{
+    RADEONInfoPtr info = RADEONPTR(pScrn);
+    if (info->dri->pKernelDRMVersion->version_major < 2) {
+        drm_radeon_getparam_t np;
+
+        memset(&np, 0, sizeof(np));
+        np.param = RADEON_PARAM_NUM_GB_PIPES;
+        np.value = num_pipes;
+        return drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_GETPARAM, &np, sizeof(np));
+    } else {
+        struct drm_radeon_info np2;
+        np2.value = (uint64_t)num_pipes;
+        np2.request = RADEON_INFO_NUM_GB_PIPES;
+        return drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_INFO, &np2, sizeof(np2));
+    }
+}
+
 /* Initialize the acceleration hardware */
 void RADEONEngineInit(ScrnInfoPtr pScrn)
 {
@@ -438,15 +456,9 @@ void RADEONEngineInit(ScrnInfoPtr pScrn)
 
 #ifdef XF86DRI
     if ((info->directRenderingEnabled || info->drm_mode_setting) && (IS_R300_3D || IS_R500_3D)) {
-        drm_radeon_getparam_t np;
 	int num_pipes;
 
-	memset(&np, 0, sizeof(np));
-	np.param = RADEON_PARAM_NUM_GB_PIPES;
-	np.value = &num_pipes;
-
-	if (drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_GETPARAM, &np,
-				sizeof(np)) < 0) {
+	if(RADEONDRMGetNumPipes(pScrn, &num_pipes) < 0) {
 	    xf86DrvMsg(pScrn->scrnIndex, X_WARNING,
 		       "Failed to determine num pipes from DRM, falling back to "
 		       "manual look-up!\n");

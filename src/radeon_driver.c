@@ -3166,6 +3166,12 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
     info->dri2.drm_fd = info->drmmode.fd;
     info->dri2.enabled = FALSE;
 	xfree(bus_id);
+	info->dri->pKernelDRMVersion = drmGetVersion(info->dri->drmFD);
+	if (info->dri->pKernelDRMVersion == NULL) {
+		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+			"RADEONDRIGetVersion failed to get the DRM version\n");
+		goto fail;
+	}
 	 
         {
 	    struct drm_radeon_gem_info mminfo;
@@ -3177,6 +3183,7 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 		ErrorF("initing gart:%llx vram: s:%llx v:%llx\n",
 		       mminfo.gart_size, mminfo.vram_size, mminfo.vram_visible);
 	    }
+        if (info->dri == NULL || info->dri->pKernelDRMVersion->version_major < 2)
 	    {
 	        struct drm_radeon_getparam gp;
 		int value;

@@ -348,3 +348,25 @@ AC_OUTPUT([
 	src/Makefile
 	man/Makefile
 ])
+
+dnl
+dnl Output some configuration info for the user
+dnl
+echo ""
+echo "        prefix:              $prefix"
+echo "        exec_prefix:         $exec_prefix"
+echo "        libdir:              $libdir"
+echo "        includedir:          $includedir"
+
+
+echo ""
+echo "        Kernel modesetting:  $DRM_MODE"
+
+echo ""
+echo "        CFLAGS:              $cflags"
+echo "        CXXFLAGS:            $cxxflags"
+echo "        Macros:              $defines"
+
+echo ""
+echo "        Run '${MAKE-make}' to build xf86-video-ati"
+echo ""

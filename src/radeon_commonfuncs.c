@@ -82,6 +82,7 @@ static void FUNC_NAME(RADEONInit3DEngine)(ScrnInfoPtr pScrn)
 	case 1: gb_tile_config |= R300_PIPE_COUNT_RV350; break;
 	}
 
+    if (info->dri->pKernelDRMVersion->version_major < 2) {
 	size = (info->ChipFamily >= CHIP_FAMILY_R420) ? 5 : 4;
 	BEGIN_ACCEL(size);
 	OUT_ACCEL_REG(R300_GB_TILE_CONFIG, gb_tile_config);
@@ -91,13 +92,20 @@ static void FUNC_NAME(RADEONInit3DEngine)(ScrnInfoPtr pScrn)
 	OUT_ACCEL_REG(R300_GB_SELECT, 0);
 	OUT_ACCEL_REG(R300_GB_ENABLE, 0);
 	FINISH_ACCEL();
+    }
 
 	if (IS_R500_3D) {
 	    su_reg_dest = ((1 << info->accel_state->num_gb_pipes) - 1);
+        if (info->dri->pKernelDRMVersion->version_major < 2) {
 	    BEGIN_ACCEL(2);
 	    OUT_ACCEL_REG(R500_SU_REG_DEST, su_reg_dest);
 	    OUT_ACCEL_REG(R500_VAP_INDEX_OFFSET, 0);
 	    FINISH_ACCEL();
+        } else {
+	    BEGIN_ACCEL(1);
+	    OUT_ACCEL_REG(R500_VAP_INDEX_OFFSET, 0);
+	    FINISH_ACCEL();
+        }
 	}
 
 	BEGIN_ACCEL(3);
