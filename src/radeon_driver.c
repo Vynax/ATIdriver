@@ -3161,12 +3161,10 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
 
 	    if (!drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_GEM_INFO, &mminfo, sizeof(mminfo)))
 	    {
-		info->mm.vram_start = mminfo.vram_start;
 		info->mm.vram_size = mminfo.vram_visible;
-		info->mm.gart_start = mminfo.gart_start;
 		info->mm.gart_size = mminfo.gart_size;
-		ErrorF("initing %llx %llx %llx %llx %llx\n", mminfo.gart_start,
-		       mminfo.gart_size, mminfo.vram_start, mminfo.vram_size, mminfo.vram_visible);
+		ErrorF("initing gart:%llx vram: s:%llx v:%llx\n",
+		       mminfo.gart_size, mminfo.vram_size, mminfo.vram_visible);
 	    }
 	    {
 	        struct drm_radeon_getparam gp;
@@ -5871,7 +5869,6 @@ Bool RADEONEnterVT(int scrnIndex, int flags)
     }
 
     if (info->drm_mm) {
-	radeon_bind_all_memory(pScrn);
 	info->accel_state->XInited3D = FALSE;
 	info->accel_state->engineMode = EXA_ENGINEMODE_UNKNOWN;
     }
@@ -6031,7 +6028,6 @@ void RADEONLeaveVT(int scrnIndex, int flags)
     if (info->drm_mm) {
 	info->accel_state->XInited3D = FALSE;
 	info->accel_state->engineMode = EXA_ENGINEMODE_UNKNOWN;
-	radeon_unbind_all_memory(pScrn);
     }
 
     if (!info->drm_mode_setting) {
@@ -6131,7 +6127,6 @@ static Bool RADEONCloseScreen(int scrnIndex, ScreenPtr pScreen)
 		   "Unmapping memory\n");
 
     if (info->drm_mm) {
-	radeon_unbind_all_memory(pScrn);
 	radeon_free_all_memory(pScrn);
     }
 

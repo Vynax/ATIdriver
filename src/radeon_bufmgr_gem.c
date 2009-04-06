@@ -107,7 +107,7 @@ dri_gem_bo_alloc(dri_bufmgr *bufmgr, const char *name,
 	args.size = size;
 	args.alignment = alignment;
 	args.initial_domain = RADEON_GEM_DOMAIN_CPU;
-	args.no_backing_store = 0;
+	args.flags = 0;
 
 	ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_CREATE, &args, sizeof(args));
 	gem_bo->gem_handle = args.handle;
@@ -232,7 +232,7 @@ dri_bufmgr_gem_destroy(dri_bufmgr *bufmgr)
 void radeon_bufmgr_gem_wait_rendering(dri_bo *buf)
 {
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)buf->bufmgr;
-	struct drm_radeon_gem_wait_rendering args;
+	struct drm_radeon_gem_wait_idle args;
 	struct drm_radeon_gem_set_domain sd_args;
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
 	int ret;
@@ -253,7 +253,7 @@ void radeon_bufmgr_gem_wait_rendering(dri_bo *buf)
 		args.handle = gem_bo->gem_handle;
 
 		do {
-		ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_WAIT_RENDERING,
+		ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_WAIT_IDLE,
 					  &args, sizeof(args));
 		} while (ret == -EAGAIN);
 	}
@@ -400,43 +400,6 @@ void radeon_bufmgr_gem_emit_reloc(dri_bo *buf, struct radeon_relocs_info *reloc_
 	*count_p = __count;
 }
 
-static int radeon_gem_bufmgr_pin(dri_bo *bo, int domain)
-{
-	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bo->bufmgr;
-	dri_bo_gem *gem_bo = (dri_bo_gem *)bo;
-	struct drm_radeon_gem_pin pin;
-	int ret;
-
-	if (domain == RADEON_GEM_DOMAIN_VRAM)
-		gem_bo->in_vram = 1;
-
-	pin.pin_domain = domain;
-	pin.handle = gem_bo->gem_handle;
-	pin.alignment = 0;
-
-	ret = ioctl(bufmgr_gem->fd, DRM_IOCTL_RADEON_GEM_PIN, &pin);
-	if (ret != 0)
-		return -1;
-
-	/* pinned buffers are considered touched */
-	gem_bo->touched = 1;
-	gem_bo->pinned = 1;
-	return 0;
-}
-
-static void radeon_gem_bufmgr_unpin(dri_bo *bo)
-{
-
-	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bo->bufmgr;
-	dri_bo_gem *gem_bo = (dri_bo_gem *)bo;
-	struct drm_radeon_gem_unpin unpin;
-
-	unpin.handle = gem_bo->gem_handle;
-	ioctl(bufmgr_gem->fd, DRM_IOCTL_RADEON_GEM_UNPIN, &unpin);
-	gem_bo->pinned = 0;
-}
-
-
 static uint32_t radeon_gem_bufmgr_get_handle(dri_bo *buf)
 {
 	dri_bo_gem *gem_bo = (dri_bo_gem *)buf;
@@ -566,8 +529,6 @@ radeon_bufmgr_gem_init(int fd)
 	bufmgr_gem->bufmgr.bo_map = dri_gem_bo_map;
 	bufmgr_gem->bufmgr.bo_unmap = dri_gem_bo_unmap;
 	bufmgr_gem->bufmgr.destroy = dri_bufmgr_gem_destroy;
-	bufmgr_gem->bufmgr.pin = radeon_gem_bufmgr_pin;
-	bufmgr_gem->bufmgr.unpin = radeon_gem_bufmgr_unpin;
 	//bufmgr_gem->bufmgr.bo_wait_rendering = radeon_bufmgr_gem_wait_rendering;
 	bufmgr_gem->radeon_bufmgr.emit_reloc = radeon_bufmgr_gem_emit_reloc;
 	bufmgr_gem->bufmgr.get_handle = radeon_gem_bufmgr_get_handle;

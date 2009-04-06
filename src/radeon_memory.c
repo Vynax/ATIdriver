@@ -6,75 +6,6 @@
 #include "radeon_drm.h"
 #include "radeon_bufmgr_gem.h"
 
-Bool
-radeon_bind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
-{
-	RADEONInfoPtr info = RADEONPTR(pScrn);	
-  
-	if (mem == NULL || mem->bound)
-		return TRUE;
-
-	if (!info->drm_mm)
-		return FALSE;
-
-	if (mem->kernel_bo_handle) {
-		struct drm_radeon_gem_pin pin;
-
-		int ret;
-
-    		if (mem->pool == RADEON_POOL_VRAM)
-		    pin.pin_domain = RADEON_GEM_DOMAIN_VRAM;
-    		else
-      		    pin.pin_domain = RADEON_GEM_DOMAIN_GTT;
-		pin.handle = mem->kernel_bo_handle;
-		pin.alignment = mem->alignment;
-
-		ret = ioctl(info->dri->drmFD, DRM_IOCTL_RADEON_GEM_PIN, &pin);
-		if (ret != 0) {
-			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-				   "Failed to pin %s: %s\n", mem->name, strerror(errno));
-			return FALSE;
-		}
-
-		mem->bound = TRUE;
-		mem->offset = pin.offset;
-		//		ErrorF("pin returned 0x%llx\n", pin.offset);
-		mem->end = mem->offset + mem->size;
-		return TRUE;
-	}
-	return FALSE;
-}
-
-static Bool
-radeon_unbind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
-{
-	RADEONInfoPtr info = RADEONPTR(pScrn);
-	int ret;
-
-	if (mem == NULL || !mem->bound)
-		return TRUE;
-
-	if (!info->drm_mm)
-		return FALSE;
-
-	if (mem->kernel_bo_handle) {
-		struct drm_radeon_gem_unpin unpin;
-
-		unpin.handle = mem->kernel_bo_handle;
-		ret = ioctl(info->dri->drmFD, DRM_IOCTL_RADEON_GEM_UNPIN, &unpin);
-
-		if (ret == 0) {
-			mem->bound = FALSE;
-			mem->offset = -1;
-			mem->end = -1;
-			return TRUE;
-		} else {
-			return FALSE;
-		}
-	}
-	return FALSE;
-}
-
 void radeon_free_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 {
 	RADEONInfoPtr info = RADEONPTR(pScrn);
@@ -85,8 +16,6 @@ void radeon_free_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
 	if (mem->map)
 	    radeon_unmap_memory(pScrn, mem);
 	    
-	radeon_unbind_memory(pScrn, mem);
-
 	if (mem->kernel_bo_handle) {
 		struct drm_gem_close close;
 
@@ -130,14 +59,13 @@ struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int si
     mem->size = size;
     mem->pool = pool;
     mem->next = mem->prev = NULL;
-    mem->vt_bind = static_alloc;
     args.size = size;
     args.alignment = alignment;
     if (pool == RADEON_POOL_VRAM)
       args.initial_domain = RADEON_GEM_DOMAIN_VRAM;
     else
       args.initial_domain = RADEON_GEM_DOMAIN_GTT;
-    args.no_backing_store = no_backing_store;
+    args.flags = no_backing_store ? RADEON_GEM_NO_BACKING_STORE : 0;
 
     ret = drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_GEM_CREATE, &args, sizeof(args));
     if (ret) {
@@ -158,40 +86,6 @@ struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int si
 	info->mm.bo_list[pool]->prev = mem;
     info->mm.bo_list[pool] = mem;
     return mem;
-}
-
-Bool radeon_bind_all_memory(ScrnInfoPtr pScrn)
-{
-    RADEONInfoPtr  info   = RADEONPTR(pScrn);	
-    struct radeon_memory *mem;
-    int i;
-
-    for (i = 0; i < 2; i++) {
-	for (mem = info->mm.bo_list[i]; mem != NULL;
-	     mem = mem->next) {
-	    if (mem->vt_bind)
-		if (!radeon_bind_memory(pScrn, mem)) {
-		    FatalError("Couldn't bind %s\n", mem->name);
-		}
-	}
-    }
-    return TRUE;
-}
-	    
-Bool radeon_unbind_all_memory(ScrnInfoPtr pScrn)
-{
-    RADEONInfoPtr  info   = RADEONPTR(pScrn);	
-    struct radeon_memory *mem;
-    int i;
-
-    for (i = 0; i < 2; i++) {
-	for (mem = info->mm.bo_list[i]; mem != NULL;
-	     mem = mem->next) {
-	    if (mem->vt_bind)
-		radeon_unbind_memory(pScrn, mem);
-	}
-    }
-    return TRUE;
 }
 
 Bool radeon_free_all_memory(ScrnInfoPtr pScrn)
@@ -360,7 +254,6 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 	if (!info->mm.texture_buffer) {
 	    return FALSE;
 	}
-	radeon_bind_memory(pScrn, info->mm.texture_buffer);
     }
 	
     if (info->drm_mode_setting) {

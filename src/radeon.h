@@ -934,9 +934,7 @@ typedef struct {
     Bool cs_used_depth;
     Bool drm_mm; // the drm memory manager exists and is initialised 
     struct {
-      uint64_t vram_start;
       uint64_t vram_size;
-      uint64_t gart_start;
       uint64_t gart_size;
 
       struct radeon_memory *bo_list[2];

@@ -394,28 +394,6 @@ uint32_t radeon_name_buffer(ScrnInfoPtr pScrn, struct radeon_memory *mem)
     return -1;
 }
 
-static void radeon_update_sarea(ScrnInfoPtr pScrn, drm_radeon_sarea_t * sarea)
-{
-    RADEONInfoPtr  info  = RADEONPTR(pScrn);
-    int cpp = info->CurrentLayout.pixel_bytes;
-    sarea->front_handle = -1;
-    sarea->back_handle = -1;
-    sarea->depth_handle = -1;
-   
-    if (info->drm_mm){
-	/* get handles and use them */
-	sarea->front_handle = radeon_name_buffer(pScrn, info->mm.front_buffer);
-
-	sarea->front_pitch         = info->dri->frontPitch * cpp;
-	sarea->back_pitch         = info->dri->backPitch * cpp;
-	sarea->depth_pitch         = info->dri->depthPitch * cpp;
-	ErrorF("front handle is %x\n", sarea->front_handle);
-	sarea->back_handle = radeon_name_buffer(pScrn, info->mm.back_buffer);
-	sarea->depth_handle = radeon_name_buffer(pScrn, info->mm.depth_buffer);
-
-    }
-}
-
 /* so we need to add a frontbuffer map no matter what */
 #define ROUND_TO(x, y)                 (((x) + (y) - 1) / (y) * (y))
 #define ROUND_TO_PAGE(x)               ROUND_TO((x), radeon_drm_page_size)
@@ -1665,12 +1643,10 @@ Bool RADEONDRIGetVersion(ScrnInfoPtr pScrn)
 	    if (!drmCommandWriteRead(fd, DRM_RADEON_GEM_INFO, &mminfo, sizeof(mminfo)))
 	    {
 		    info->drm_mm = TRUE;
-		    info->mm.vram_start = mminfo.vram_start;
 		    info->mm.vram_size = mminfo.vram_size;
-		    info->mm.gart_start = mminfo.vram_start;
 		    info->mm.gart_size = mminfo.gart_size;
-		    ErrorF("initing %llx %llx %llx %llx\n", mminfo.gart_start,
-			   mminfo.gart_size, mminfo.vram_start, mminfo.vram_size);
+		    ErrorF("initing %llx %llx %llx %llx\n",
+			   mminfo.gart_size, mminfo.vram_size);
 	    }
     }
 
