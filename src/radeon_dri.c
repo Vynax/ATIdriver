@@ -471,7 +471,6 @@ Bool radeon_update_dri_buffers(ScreenPtr pScreen)
     if (!success)
 	return FALSE;
 
-    radeon_update_sarea(pScrn, sarea);
     radeon_update_screen_private(pScrn, sarea);
     return TRUE;
 }
@@ -1706,8 +1705,6 @@ Bool RADEONDRIDoMappings(ScreenPtr pScreen)
 	RADEONDRICloseScreen(pScreen);
 	return FALSE;
     }
-    
-    radeon_update_sarea(pScrn, pSAREAPriv);
     
 				/* DRIScreenInit adds the frame buffer
 				   map, but we need it as well */
