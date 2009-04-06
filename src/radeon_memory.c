@@ -110,16 +110,22 @@ int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem)
     struct drm_radeon_gem_mmap args;
     RADEONInfoPtr info = RADEONPTR(pScrn);
     int ret;
+    void *ptr;
 
     assert(!mem->map);
-
 
     args.handle = mem->kernel_bo_handle;
     args.size = mem->size;
     ret = drmCommandWriteRead(info->dri->drmFD, DRM_RADEON_GEM_MMAP, &args, sizeof(args));
 
-    if (!ret)
-	mem->map = (void *)(unsigned long)args.addr_ptr;
+    if (ret)
+	return ret;
+
+    ptr = mmap(0, args.size, PROT_READ|PROT_WRITE, MAP_SHARED, info->dri->drmFD, args.addr_ptr);
+    if (ptr == MAP_FAILED)
+        return -errno;
+
+    mem->map = ptr;
     //    ErrorF("Mapped %s size %ld at %x %p\n", mem->name, mem->size, mem->offset, mem->map);
     return ret;
 }

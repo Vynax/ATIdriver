@@ -195,6 +195,7 @@ dri_gem_bo_map(dri_bo *bo, int write_enable)
 	dri_bo_gem *gem_bo = (dri_bo_gem *)bo;
 	struct drm_radeon_gem_mmap args;
 	int ret;
+	void *ptr;
 
 	if (gem_bo->map_count++ != 0)
 		return 0;
@@ -204,8 +205,13 @@ dri_gem_bo_map(dri_bo *bo, int write_enable)
 	args.size = gem_bo->bo.size;
 
 	ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_MMAP, &args, sizeof(args));
-	if (!ret)
-		gem_bo->bo.virtual = (void *)(unsigned long)args.addr_ptr;
+	if (ret)
+		return ret;
+
+	ptr = mmap(0, args.size, PROT_READ|PROT_WRITE, MAP_SHARED, bufmgr_gem->fd, args.addr_ptr);
+	if (ptr == MAP_FAILED)
+		return -errno;
+	gem_bo->bo.virtual = ptr;
 
 	return ret;
 }
