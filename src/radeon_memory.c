@@ -199,27 +199,6 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     /* keep area front front buffer - but don't allocate it yet */
     total_size_bytes += screen_size;
 
-    if (info->directRenderingEnabled && !info->dri2.enabled) {
-	info->dri->backPitch = pScrn->displayWidth;
-	info->mm.back_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, screen_size, 0, 1, "Back Buffer", 0);
-	if (!info->mm.back_buffer) {
-	    return FALSE;
-	}
-	total_size_bytes += screen_size;
-	
-	info->dri->depthPitch = RADEON_ALIGN(pScrn->displayWidth, 32);
-	{
-	    int depthCpp = (info->dri->depthBits - 8) / 4;
-	    int depth_size = RADEON_ALIGN(pScrn->virtualY, 16) * info->dri->depthPitch * depthCpp;
-    	    depth_size = RADEON_ALIGN(depth_size, pagesize);
-	    info->mm.depth_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, depth_size, 0, 1, "Depth Buffer", 0);
-	    if (!info->mm.depth_buffer) {
-		return FALSE;
-	    }
-	    total_size_bytes += depth_size;
-	}
-    }
-
     /* work out from the mm size what the exa / tex sizes need to be */
     remain_size_bytes = info->mm.vram_size - total_size_bytes;
 
@@ -242,37 +221,14 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
 
     ErrorF("fb size is %dK %dK\n", fb_size_bytes / 1024, total_size_bytes / 1024);
 
-    info->mm.front_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, fb_size_bytes, 0, 1, "Front Buffer + EXA", 1);
+    info->mm.front_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, fb_size_bytes, 0, 1, "Front Buffer", 1);
     if (!info->mm.front_buffer) {
 	return FALSE;
     }
 
-    /* don't need to bind or map memory */
-    if (!info->dri2.enabled) {
-      if (radeon_map_memory(pScrn, info->mm.front_buffer)) {
-	ErrorF("Failed to map front buffer memory\n");
-      }
-      info->dri->frontPitch = pScrn->displayWidth;
-    }
-
-    if (info->directRenderingEnabled && info->dri->textureSize) {
-	info->mm.texture_buffer = radeon_allocate_memory(pScrn, RADEON_POOL_VRAM, info->dri->textureSize, 0, 1, "Texture Buffer", 1);
-	if (!info->mm.texture_buffer) {
-	    return FALSE;
-	}
-    }
-	
-    if (info->drm_mode_setting) {
-	drmmode_set_fb(pScrn, &info->drmmode, pScrn->virtualX, RADEON_ALIGN(pScrn->virtualY, 16), stride, info->mm.front_buffer->kernel_bo_handle);
-    }
+    drmmode_set_fb(pScrn, &info->drmmode, pScrn->virtualX, RADEON_ALIGN(pScrn->virtualY, 16), stride, info->mm.front_buffer->kernel_bo_handle);
 
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Front buffer size: %dK at 0x%08x\n", info->mm.front_buffer->size/1024, info->mm.front_buffer->offset);
-    if (info->directRenderingEnabled && !info->dri2.enabled) {
-   	 xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Back buffer size:  %dK at 0x%08x\n", info->mm.back_buffer->size/1024, info->mm.back_buffer->offset);
-    	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Depth buffer size: %dK at 0x%08x\n", info->mm.depth_buffer->size/1024, info->mm.depth_buffer->offset);
-    }
-    if (info->mm.texture_buffer)
-      xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Texture size:      %dK at 0x%08x\n", info->mm.texture_buffer->size/1024, info->mm.texture_buffer->offset);
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Remaining VRAM size (used for pixmaps): %dK\n", remain_size_bytes/1024);
 
     /* set the emit limit at 90% of VRAM */
