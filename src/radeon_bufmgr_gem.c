@@ -75,6 +75,7 @@ typedef struct _dri_bo_gem {
 	int force_gtt;
 	int pinned;
 	int touched;
+	void *priv_map;
 	uint32_t space_accounted;
 } dri_bo_gem;
 
@@ -146,8 +147,8 @@ static void dri_gem_bo_free(dri_bo *bo)
 	dri_bo_gem *gem_bo = (dri_bo_gem *)bo, *trav, *prev;
 	struct drm_gem_close args;
 
-	if (gem_bo->map_count)
-		munmap(gem_bo->bo.virtual, gem_bo->bo.size);
+	if (gem_bo->priv_map)
+		munmap(gem_bo->priv_map, gem_bo->bo.size);
 
 	/* close object */
 	args.handle = gem_bo->gem_handle;
@@ -200,18 +201,21 @@ dri_gem_bo_map(dri_bo *bo, int write_enable)
 	if (gem_bo->map_count++ != 0)
 		return 0;
 
-	args.handle = gem_bo->gem_handle;
-	args.offset = 0;
-	args.size = gem_bo->bo.size;
+	if (!gem_bo->priv_map) {
+		args.handle = gem_bo->gem_handle;
+		args.offset = 0;
+		args.size = gem_bo->bo.size;
 
-	ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_MMAP, &args, sizeof(args));
-	if (ret)
-		return ret;
+		ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_MMAP, &args, sizeof(args));
+		if (ret)
+			return ret;
 
-	ptr = mmap(0, args.size, PROT_READ|PROT_WRITE, MAP_SHARED, bufmgr_gem->fd, args.addr_ptr);
-	if (ptr == MAP_FAILED)
-		return -errno;
-	gem_bo->bo.virtual = ptr;
+		ptr = mmap(0, args.size, PROT_READ|PROT_WRITE, MAP_SHARED, bufmgr_gem->fd, args.addr_ptr);
+		if (ptr == MAP_FAILED)
+			return -errno;
+		gem_bo->priv_map = ptr;
+	}
+	gem_bo->bo.virtual = gem_bo->priv_map;
 
 	return ret;
 }
@@ -224,8 +228,7 @@ dri_gem_bo_unmap(dri_bo *buf)
 	if (--gem_bo->map_count > 0)
 		return 0;
 
-        munmap(gem_bo->bo.virtual, gem_bo->bo.size);
-	gem_bo->bo.virtual = 0;
+	gem_bo->bo.virtual = NULL;
 	return 0;
 }
 
