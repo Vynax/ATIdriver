@@ -3622,9 +3622,6 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 	    info->accelDFS = xf86ReturnOptValBool(info->Options, OPTION_ACCEL_DFS,
                                                   info->cardType != CARD_AGP);
 
-	    if (info->drm_mm)
-	      info->accelDFS = FALSE;
-
 	    /* Reserve approx. half of offscreen memory for local textures by
 	     * default, can be overridden with Option "FBTexPercent".
 	     * Round down to a whole number of texture regions.
