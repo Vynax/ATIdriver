@@ -195,7 +195,7 @@ dri_gem_bo_map(dri_bo *bo, int write_enable)
 	dri_bufmgr_gem *bufmgr_gem = (dri_bufmgr_gem *)bo->bufmgr;
 	dri_bo_gem *gem_bo = (dri_bo_gem *)bo;
 	struct drm_radeon_gem_mmap args;
-	int ret;
+	int ret = 0;
 	void *ptr;
 
 	if (gem_bo->map_count++ != 0)
@@ -215,6 +215,7 @@ dri_gem_bo_map(dri_bo *bo, int write_enable)
 			return -errno;
 		gem_bo->priv_map = ptr;
 	}
+
 	gem_bo->bo.virtual = gem_bo->priv_map;
 
 	return ret;

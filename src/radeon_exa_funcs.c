@@ -623,6 +623,7 @@ retry:
 				x, y, 0, 0, w, hpass);
 	    }
 
+	    radeon_bufmgr_gem_wait_rendering(old_scratch);
 	    ret = dri_bo_map(old_scratch, 0);
 	    
 	    if (hpass)
