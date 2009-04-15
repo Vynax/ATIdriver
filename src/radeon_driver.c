@@ -230,7 +230,7 @@ radeonShadowWindow(ScreenPtr screen, CARD32 row, CARD32 offset, int mode,
     *size = stride;
 
     if (info->drm_mm)
-        return ((uint8_t *)info->mm.front_buffer->map + row * stride + offset);
+        return ((uint8_t *)info->mm.front_buffer->virtual + row * stride + offset);
     else
         return ((uint8_t *)info->FB + row * stride + offset);
 }
@@ -255,9 +255,9 @@ RADEONCreateScreenResources (ScreenPtr pScreen)
    }
 
    if (info->dri2.enabled) {
-       if (info->mm.front_buffer->kernel_bo_handle) {
+       if (info->mm.front_buffer) {
 	   PixmapPtr pPix = pScreen->GetScreenPixmap(pScreen);
-	   radeon_set_pixmap_mem(pPix, info->mm.front_buffer);
+	   radeon_set_pixmap_bo(pPix, info->mm.front_buffer);
        }
    }
    return TRUE;
@@ -2117,6 +2117,10 @@ static Bool RADEONPreInitAccel(ScrnInfoPtr pScrn)
 	info->useEXA = TRUE;
 #endif /* !USE_XAA */
 #endif /* USE_EXA */
+	/* for drm_mm use EXA */
+	if (info->drm_mm && !info->r600_shadow_fb) {
+		info->useEXA = TRUE;
+	}
         if (info->ChipFamily < CHIP_FAMILY_R600)
 	    xf86DrvMsg(pScrn->scrnIndex, from,
 		       "Using %s acceleration architecture\n",
@@ -3719,14 +3723,12 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
 	}
 	info->bufmgr = radeon_bufmgr_gem_init(info->dri->drmFD);
 	drmmode_set_bufmgr(pScrn, &info->drmmode, info->bufmgr);
-	//radeon_bufmgr_gem_enable_reuse(info->bufmgr);
+
 	radeon_bufmgr_gem_set_limit(info->bufmgr, RADEON_GEM_DOMAIN_GTT, info->mm.gart_size - info->dri->gartTexMapSize);
     
 	radeon_setup_kernel_mem(pScreen);
-	front_ptr = info->mm.front_buffer->map;
-	pScrn->fbOffset = info->mm.front_buffer->offset;
-	info->accel_state->dst_pitch_offset = (((pScrn->displayWidth * info->CurrentLayout.pixel_bytes / 64)
-						<< 22) | ((info->fbLocation + pScrn->fbOffset) >> 10));
+	front_ptr = info->mm.front_buffer->virtual;
+	info->accel_state->dst_pitch_offset = (((pScrn->displayWidth * info->CurrentLayout.pixel_bytes / 64) << 22));
     } else {
 
 	/* Tell DRI about new memory map */
@@ -6122,10 +6124,6 @@ static Bool RADEONCloseScreen(int scrnIndex, ScreenPtr pScreen)
     info->DGAModes = NULL;
     xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
 		   "Unmapping memory\n");
-
-    if (info->drm_mm) {
-	radeon_free_all_memory(pScrn);
-    }
 
     RADEONUnmapMem(pScrn);
 

@@ -371,29 +371,6 @@ static void RADEONDestroyContext(ScreenPtr pScreen, drm_context_t hwContext,
 #endif
 }
 
-
-uint32_t radeon_name_buffer(ScrnInfoPtr pScrn, struct radeon_memory *mem)
-{
-    RADEONInfoPtr  info  = RADEONPTR(pScrn);
-    struct drm_gem_flink flink;
-    int ret;
-	
-    if (mem && mem->kernel_bo_handle) {
-	if (!mem->kernel_name) {
-	    flink.handle = mem->kernel_bo_handle;
-	    ret = ioctl(info->dri->drmFD, DRM_IOCTL_GEM_FLINK, &flink);
-	    if (ret != 0) {
-		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "[drm] failed to name buffer %d\n", -errno);
-		return -1;
-	    }
-	    mem->kernel_name = flink.name;
-	}
-	return mem->kernel_name;
-    }
-    return -1;
-}
-
 /* so we need to add a frontbuffer map no matter what */
 #define ROUND_TO(x, y)                 (((x) + (y) - 1) / (y) * (y))
 #define ROUND_TO_PAGE(x)               ROUND_TO((x), radeon_drm_page_size)
@@ -411,12 +388,6 @@ radeon_update_screen_private(ScrnInfoPtr pScrn, drm_radeon_sarea_t * sarea)
 #if DRI_DRIVER_FRAMEBUFFER_MAP
     info->dri->pDRIInfo->hFrameBuffer = info->fb_map_handle;
 #endif
-    /* overload these */
-    pRADEONDRI->gartTexHandle = radeon_name_buffer(pScrn, info->mm.gart_texture_buffer);
-    pRADEONDRI->textureOffset = radeon_name_buffer(pScrn, info->mm.texture_buffer);
-    pRADEONDRI->frontOffset = radeon_name_buffer(pScrn, info->mm.front_buffer);
-    pRADEONDRI->backOffset = radeon_name_buffer(pScrn, info->mm.back_buffer);
-    pRADEONDRI->depthOffset = radeon_name_buffer(pScrn, info->mm.depth_buffer);
 }
 
 static Bool
@@ -1644,7 +1615,7 @@ Bool RADEONDRIGetVersion(ScrnInfoPtr pScrn)
 		    info->drm_mm = TRUE;
 		    info->mm.vram_size = mminfo.vram_size;
 		    info->mm.gart_size = mminfo.gart_size;
-		    ErrorF("initing %llx %llx %llx %llx\n",
+		    ErrorF("initing %llx %llx\n",
 			   mminfo.gart_size, mminfo.vram_size);
 	    }
     }
@@ -2597,4 +2568,5 @@ static Bool radeon_dri_gart_init(ScreenPtr pScreen)
     RADEONInfoPtr  info    = RADEONPTR(pScrn);
 
     RADEONDRIInitGARTValues(info);
+    return TRUE;
 }

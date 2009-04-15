@@ -498,25 +498,6 @@ void radeon_set_pixmap_bo(PixmapPtr pPix, dri_bo *bo)
 #endif
 
 }
-void radeon_set_pixmap_mem(PixmapPtr pPix, struct radeon_memory *mem)
-{
-    ScrnInfoPtr pScrn = xf86Screens[pPix->drawable.pScreen->myNum];
-    RADEONInfoPtr info = RADEONPTR(pScrn);
-    
-#ifdef XF86DRM_MODE
-    struct radeon_exa_pixmap_priv *driver_priv;
-
-    driver_priv = exaGetPixmapDriverPrivate(pPix);
-    if (driver_priv) {
-	if (driver_priv->bo)
-	    dri_bo_unreference(driver_priv->bo);
-
-	driver_priv->bo = radeon_bo_gem_create_from_name(info->bufmgr, "front",
-							 radeon_name_buffer(pScrn, mem));
-    }
-#endif
-}
-    
 
 static Bool RADEONEXAPixmapIsOffscreen(PixmapPtr pPix)
 {
@@ -582,8 +563,6 @@ static Bool RADEONEXAPixmapIsOffscreen(PixmapPtr pPix)
 #undef OUT_RING_F
 
 #endif /* XF86DRI */
-
-
 
 /*
  * Once screen->off_screen_base is set, this function

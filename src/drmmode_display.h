@@ -47,8 +47,7 @@ typedef struct {
 
     drmmode_ptr drmmode;
     drmModeCrtcPtr mode_crtc;
-    uint32_t cursor_handle;
-    void *cursor_map;
+    dri_bo *cursor_bo;
     dri_bo *rotate_bo;
     int rotate_fb_id;
 } drmmode_crtc_private_rec, *drmmode_crtc_private_ptr;
@@ -65,10 +64,12 @@ typedef struct {
 
 extern Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, char *busId, char *driver_name, int cpp);
 extern Bool drmmode_set_bufmgr(ScrnInfoPtr pScrn, drmmode_ptr drmmode, dri_bufmgr *bufmgr);
-extern void drmmode_set_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int width, int height, int pitch, uint32_t handle);
+extern void drmmode_set_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int width, int height, int pitch, dri_bo *bo);
 extern Bool drmmode_is_rotate_pixmap(ScrnInfoPtr pScrn, pointer pPixData, dri_bo **bo);
-extern void drmmode_set_cursor(ScrnInfoPtr scrn, drmmode_ptr drmmode, int id, void *ptr, uint32_t handle);
+extern void drmmode_set_cursor(ScrnInfoPtr scrn, drmmode_ptr drmmode, int id, dri_bo *bo);
 void drmmode_adjust_frame(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int x, int y, int flags);
 extern Bool drmmode_set_desired_modes(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
+extern void drmmode_copy_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
 #endif
+
 #endif

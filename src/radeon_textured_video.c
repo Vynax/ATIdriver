@@ -469,8 +469,6 @@ RADEONPutImageTextured(ScrnInfoPtr pScrn,
 	    return BadAlloc;
       
 	pPriv->src_addr = pPriv->src_bo->virtual;
-    } else if (info->drm_mm) {
-        pPriv->src_addr = (uint8_t *)(info->mm.front_buffer->map + pPriv->video_offset + (top * dstPitch));
     } else {
         if (info->ChipFamily >= CHIP_FAMILY_R600)
             pPriv->src_addr = (uint8_t *)(info->FB + pPriv->video_offset);

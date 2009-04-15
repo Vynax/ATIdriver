@@ -418,9 +418,6 @@ typedef enum {
 
 typedef struct _atomBiosHandle *atomBiosHandlePtr;
 
-#define RADEON_POOL_GART 0
-#define RADEON_POOL_VRAM 1
-
 struct radeon_exa_pixmap_priv {
     dri_bo *bo;
     int flags;
@@ -937,24 +934,8 @@ typedef struct {
       uint64_t vram_size;
       uint64_t gart_size;
 
-      struct radeon_memory *bo_list[2];
-      struct radeon_memory *front_buffer;
-      struct radeon_memory *back_buffer;
-      struct radeon_memory *depth_buffer;
-
-#if 0
-      struct radeon_memory *exa_buffer;
-#endif
-      struct radeon_memory *texture_buffer;
-
-      struct radeon_memory *dma_buffer;
-      struct radeon_memory *gart_texture_buffer;
-      struct radeon_memory *rotate_buffer;
-      struct radeon_memory *cursor[2];
-
-      /* indirect buffer for accel */
-      struct radeon_memory *gem_ib_memory;
-      
+      dri_bo *front_buffer;
+      dri_bo *cursor[2];
     } mm;
 
     drm_handle_t fb_map_handle;
@@ -1221,22 +1202,11 @@ radeon_legacy_free_memory(ScrnInfoPtr pScrn,
 		          void *mem_struct);
 
 /* radeon_memory.c */
-extern uint32_t radeon_name_buffer(ScrnInfoPtr pScrn, struct radeon_memory *mem);
-extern Bool radeon_bind_all_memory(ScrnInfoPtr pScrn);
-extern Bool radeon_unbind_all_memory(ScrnInfoPtr pScrn);
-extern struct radeon_memory *radeon_allocate_memory(ScrnInfoPtr pScrn, int pool, int size, int alignment, Bool no_backing_store, char *name, 
-						    int need_bind);
-int radeon_map_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
-void radeon_unmap_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
-void radeon_free_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
-Bool radeon_bind_memory(ScrnInfoPtr pScrn, struct radeon_memory *mem);
-Bool radeon_free_all_memory(ScrnInfoPtr pScrn);
 Bool radeon_setup_kernel_mem(ScreenPtr pScreen);
 Bool RADEONDRIDoMappings(ScreenPtr pScreen);
 Bool radeon_update_dri_buffers(ScreenPtr pScreen);
 
 dri_bo *radeon_get_pixmap_bo(PixmapPtr pPix);
-void radeon_set_pixmap_mem(PixmapPtr pPix, struct radeon_memory *mem);
 void radeon_set_pixmap_bo(PixmapPtr pPix, dri_bo *bo);
 #ifdef XF86DRI
 #  ifdef USE_XAA
