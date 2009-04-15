@@ -78,7 +78,7 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     info->mm.front_buffer = dri_bo_alloc(info->bufmgr, "front", screen_size,
 					 0, RADEON_GEM_DOMAIN_VRAM);
 
-    drmmode_set_fb(pScrn, &info->drmmode, pScrn->virtualX, RADEON_ALIGN(pScrn->virtualY, 16), stride, info->mm.front_buffer);
+    //    drmmode_set_fb(pScrn, &info->drmmode, pScrn->virtualX, RADEON_ALIGN(pScrn->virtualY, 16), stride, info->mm.front_buffer);
 
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Front buffer size: %dK\n", info->mm.front_buffer->size/1024);
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Remaining VRAM size (used for pixmaps): %dK\n", remain_size_bytes/1024);

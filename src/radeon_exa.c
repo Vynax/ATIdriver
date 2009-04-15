@@ -423,47 +423,6 @@ static void RADEONEXADestroyPixmap(ScreenPtr pScreen, void *driverPriv)
     xfree(driverPriv);
 }
 
-static Bool RADEONEXAModifyPixmapHeader(PixmapPtr pPixmap, int width, int height,
-					int depth, int bitsPerPixel, int devKind,
-					pointer pPixData)
-{
-    ScreenPtr   pScreen = pPixmap->drawable.pScreen;
-    ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    RADEONInfoPtr info = RADEONPTR(pScrn);
-    struct radeon_exa_pixmap_priv *driver_priv;
-
-    driver_priv = exaGetPixmapDriverPrivate(pPixmap);
-    if (!driver_priv)
-	return FALSE;
-
-    if (info->drm_mode_setting && drmmode_is_rotate_pixmap(pScrn, pPixData, &driver_priv->bo)){
-	dri_bo_unmap(driver_priv->bo);
-	dri_bo_reference(driver_priv->bo);
-	miModifyPixmapHeader(pPixmap, width, height, depth,
-                             bitsPerPixel, devKind, NULL);
-
-    	return TRUE;
-    }
-
-#if 0
-    if (pPixData == info->mm.front_buffer->map) {
-	if (driver_priv->bo)
-	  dri_bo_unreference(driver_priv->bo);
-
-	driver_priv->bo = radeon_bo_gem_create_from_name(info->bufmgr, "front",
-							 radeon_name_buffer(pScrn, info->mm.front_buffer));
-
-	if (!driver_priv->bo)
-	  return FALSE;
-
-	miModifyPixmapHeader(pPixmap, width, height, depth,
-                             bitsPerPixel, devKind, NULL);
-	return TRUE;
-    }
-#endif
-    return FALSE;
-}
-
 dri_bo *radeon_get_pixmap_bo(PixmapPtr pPix)
 {
     ScrnInfoPtr pScrn = xf86Screens[pPix->drawable.pScreen->myNum];

@@ -210,6 +210,8 @@ static Bool
 drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 		     Rotation rotation, int x, int y)
 {
+	ScrnInfoPtr pScrn = crtc->scrn;
+	RADEONInfoPtr info = RADEONPTR(pScrn);
 	xf86CrtcConfigPtr   xf86_config = XF86_CRTC_CONFIG_PTR(crtc->scrn);
 	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
@@ -222,6 +224,19 @@ drmmode_set_mode_major(xf86CrtcPtr crtc, DisplayModePtr mode,
 	int i;
 	int fb_id;
 	drmModeModeInfo kmode;
+	int pitch = pScrn->displayWidth * info->CurrentLayout.pixel_bytes;
+
+	if (drmmode->fb_id == 0) {
+		ret = drmModeAddFB(drmmode->fd,
+				   pScrn->virtualX, pScrn->virtualY,
+                                   pScrn->depth, pScrn->bitsPerPixel,
+                                   pitch, dri_bo_get_handle(info->mm.front_buffer),
+                                   &drmmode->fb_id);
+                if (ret < 0) {
+                        ErrorF("failed to add fb\n");
+                        return FALSE;
+                }
+        }
 
 	saved_mode = crtc->mode;
 	saved_x = crtc->x;
@@ -358,13 +373,16 @@ drmmode_crtc_shadow_allocate(xf86CrtcPtr crtc, int width, int height)
 	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
 	drmmode_ptr drmmode = drmmode_crtc->drmmode;
 	int size;
-	unsigned long rotate_pitch;
 	dri_bo *rotate_bo;
 	int ret;
-	rotate_pitch = crtc->scrn->displayWidth * drmmode->cpp;
+	unsigned long rotate_pitch;
+
+	width = RADEON_ALIGN(width, 63);
+	rotate_pitch = width * drmmode->cpp;
+
 	size = rotate_pitch * height;
 
-	rotate_bo = dri_bo_alloc(drmmode->bufmgr, "rotate", size, 0, 0);
+	rotate_bo = dri_bo_alloc(drmmode->bufmgr, "rotate", size, 0, RADEON_GEM_DOMAIN_VRAM);
 	if (rotate_bo == NULL)
 		return NULL;
 
@@ -393,7 +411,7 @@ drmmode_crtc_shadow_create(xf86CrtcPtr crtc, void *data, int width, int height)
 	if (!data)
 		data = drmmode_crtc_shadow_allocate (crtc, width, height);
 
-	rotate_pitch = pScrn->displayWidth * drmmode->cpp;
+	rotate_pitch = RADEON_ALIGN(width, 63) * drmmode->cpp;
 	
 	rotate_pixmap = GetScratchPixmapHeader(pScrn->pScreen,
 					       width, height,
@@ -830,26 +848,7 @@ Bool drmmode_set_bufmgr(ScrnInfoPtr pScrn, drmmode_ptr drmmode, dri_bufmgr *bufm
 	return TRUE;
 }
 
-void drmmode_set_fb(ScrnInfoPtr scrn, drmmode_ptr drmmode, int width, int height, int pitch, dri_bo *bo)
-{
-	int ret;
-	uint32_t handle = dri_bo_get_handle(bo);
 
-	ret = drmModeAddFB(drmmode->fd, width, height, scrn->depth,
-			   scrn->bitsPerPixel, pitch, handle,
-			   &drmmode->fb_id);
-
-	if (ret) {
-		ErrorF("Failed to add fb\n");
-	}
-
-	drmmode->mode_fb = drmModeGetFB(drmmode->fd, drmmode->fb_id);
-	if (!drmmode->mode_fb)
-		return;
-
-
-	ErrorF("Add fb id %d %d %d\n", drmmode->fb_id, width, height);
-}
 
 void drmmode_set_cursor(ScrnInfoPtr scrn, drmmode_ptr drmmode, int id, dri_bo *bo)
 {
@@ -858,30 +857,6 @@ void drmmode_set_cursor(ScrnInfoPtr scrn, drmmode_ptr drmmode, int id, dri_bo *b
 	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
 
 	drmmode_crtc->cursor_bo = bo;
-}
-
-Bool drmmode_is_rotate_pixmap(ScrnInfoPtr pScrn, pointer pPixData, dri_bo **bo)
-{
-	xf86CrtcConfigPtr	config = XF86_CRTC_CONFIG_PTR (pScrn);
-	int i;
-
-	if (pPixData == NULL)
-		return FALSE;
-
-	for (i = 0; i < config->num_crtc; i++) {
-		xf86CrtcPtr crtc = config->crtc[i];
-		drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
-
-		if (!drmmode_crtc->rotate_bo)
-			continue;
-
-		if (drmmode_crtc->rotate_bo->virtual == pPixData) {
-			*bo = drmmode_crtc->rotate_bo;
-			return TRUE;
-		}
-	}
-	return FALSE;
-
 }
 
 void drmmode_adjust_frame(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int x, int y, int flags)
