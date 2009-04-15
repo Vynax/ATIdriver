@@ -19,14 +19,9 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     int screen_size;
     int stride = pScrn->displayWidth * cpp;
     int total_size_bytes = 0, remain_size_bytes;
-    int fb_size_bytes;
     int pagesize = 4096;
     
     screen_size = RADEON_ALIGN(pScrn->virtualY, 16) * stride;
-
-    ErrorF("%d x %d x %d = %dK\n", pScrn->displayWidth, pScrn->virtualY, cpp, screen_size / 1024);
-
-
     {
 	int cursor_size = 64 * 4 * 64;
 	int c;
@@ -57,23 +52,6 @@ Bool radeon_setup_kernel_mem(ScreenPtr pScreen)
     remain_size_bytes = info->mm.vram_size - total_size_bytes;
 
     info->dri->textureSize = 0;
-#if 0
-    if (info->dri->textureSize > 0)
-    	info->dri->textureSize = (remain_size_bytes / 100) * info->dri->textureSize;
-    else
-    	info->dri->textureSize = remain_size_bytes / 2;
-
-    info->dri->textureSize = RADEON_ALIGN(info->dri->textureSize, pagesize);
-
-    remain_size_bytes -= info->dri->textureSize;
-#endif
-
-    ErrorF("texture size is %dK, exa is %dK\n", info->dri->textureSize / 1024, remain_size_bytes/1024);
-
-
-    fb_size_bytes = screen_size;
-
-    ErrorF("fb size is %dK %dK\n", fb_size_bytes / 1024, total_size_bytes / 1024);
 
     info->mm.front_buffer = dri_bo_alloc(info->bufmgr, "front", screen_size,
 					 0, RADEON_GEM_DOMAIN_VRAM);
