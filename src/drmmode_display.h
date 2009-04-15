@@ -62,7 +62,7 @@ typedef struct {
 } drmmode_output_private_rec, *drmmode_output_private_ptr;
 
 
-extern Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, char *busId, char *driver_name, int cpp);
+extern Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, char *busId, char *driver_name, int cpp, int zaphod_mask);
 extern Bool drmmode_set_bufmgr(ScrnInfoPtr pScrn, drmmode_ptr drmmode, dri_bufmgr *bufmgr);
 extern void drmmode_set_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int width, int height, int pitch, dri_bo *bo);
 extern void drmmode_set_cursor(ScrnInfoPtr scrn, drmmode_ptr drmmode, int id, dri_bo *bo);

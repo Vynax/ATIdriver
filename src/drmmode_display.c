@@ -188,6 +188,8 @@ void drmmode_copy_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode)
 	}
 			
 	src = create_pixmap_for_fbcon(drmmode, pScrn, crtc_id);
+	if (!src)
+		return;
 
 	dst = GetScratchPixmapHeader(pScreen,
 				     pScrn->virtualX, pScrn->virtualY,
@@ -804,24 +806,31 @@ static const xf86CrtcConfigFuncsRec drmmode_xf86crtc_config_funcs = {
 };
 
 
-Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, char *busId, char *driver_name, int cpp)
+Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, char *busId, char *driver_name, int cpp, int zaphod_mask)
 {
 	xf86CrtcConfigPtr   xf86_config;
+    	RADEONEntPtr pRADEONEnt = RADEONEntPriv(pScrn);
 	int i;
 	Bool ret;
 
 	/* Create a bus Id */
 	/* Low level DRM open */
-	ret = DRIOpenDRMMaster(pScrn, SAREA_MAX, busId, driver_name);
-	if (!ret) {
+	if (!pRADEONEnt->fd) {
+		ret = DRIOpenDRMMaster(pScrn, SAREA_MAX, busId, driver_name);
+		if (!ret) {
+			xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
+				   "[dri] DRIGetVersion failed to open the DRM\n"
+				   "[dri] Disabling DRI.\n");
+			return FALSE;
+		}
+
+		drmmode->fd = DRIMasterFD(pScrn);
+		pRADEONEnt->fd = drmmode->fd;
+	} else {
 		xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
-			   "[dri] DRIGetVersion failed to open the DRM\n"
-			   "[dri] Disabling DRI.\n");
-		return FALSE;
+				" reusing fd for second head\n");
+		drmmode->fd = pRADEONEnt->fd;
 	}
-
-	drmmode->fd = DRIMasterFD(pScrn);
-
 	xf86CrtcConfigInit(pScrn, &drmmode_xf86crtc_config_funcs);
 	xf86_config = XF86_CRTC_CONFIG_PTR(pScrn);
 
@@ -832,10 +841,12 @@ Bool drmmode_pre_init(ScrnInfoPtr pScrn, drmmode_ptr drmmode, char *busId, char 
 
 	xf86CrtcSetSizeRange(pScrn, 320, 200, drmmode->mode_res->max_width, drmmode->mode_res->max_height);
 	for (i = 0; i < drmmode->mode_res->count_crtcs; i++)
-		drmmode_crtc_init(pScrn, drmmode, i);
+		if (zaphod_mask & (1 << i))
+			drmmode_crtc_init(pScrn, drmmode, i);
 
 	for (i = 0; i < drmmode->mode_res->count_connectors; i++)
-		drmmode_output_init(pScrn, drmmode, i);
+		if (zaphod_mask & (1 << i))
+			drmmode_output_init(pScrn, drmmode, i);
 
 	xf86InitialConfiguration(pScrn, TRUE);
 

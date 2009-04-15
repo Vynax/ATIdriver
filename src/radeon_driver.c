@@ -3145,11 +3145,18 @@ Bool RADEONPreInit(ScrnInfoPtr pScrn, int flags)
     } else {
 #ifdef XF86DRM_MODE
 	char *bus_id;
-   	 if (!radeon_alloc_dri(pScrn))
+	int zaphod_mask;
+	if (!radeon_alloc_dri(pScrn))
 		return FALSE;
 
+	zaphod_mask = 0xf;
+	if (info->IsPrimary)
+		zaphod_mask = 0xd;
+	if (info->IsSecondary)
+		zaphod_mask = 0x2;
+
 	bus_id = DRICreatePCIBusID(info->PciInfo);
-	if (drmmode_pre_init(pScrn, &info->drmmode, bus_id, "radeon", pScrn->bitsPerPixel / 8) == FALSE) {
+	if (drmmode_pre_init(pScrn, &info->drmmode, bus_id, "radeon", pScrn->bitsPerPixel / 8, zaphod_mask) == FALSE) {
 	    xfree(bus_id);
 	    xf86DrvMsg(pScrn->scrnIndex, X_ERROR, "Kernel modesetting setup failed\n");
 	    goto fail;
