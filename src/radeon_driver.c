@@ -3988,18 +3988,24 @@ Bool RADEONScreenInit(int scrnIndex, ScreenPtr pScreen,
     pScrn->PointerMoved = RADEONPointerMoved;
 
     /* Colormap setup */
-    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
-                   "Initializing color map\n");
-    if (!miCreateDefColormap(pScreen)) return FALSE;
-    /* all radeons support 10 bit CLUTs */
-    if (!xf86HandleColormaps(pScreen, 256, 10,
-			     RADEONLoadPalette, NULL,
-			     CMAP_PALETTED_TRUECOLOR
+    if (!info->drm_mode_setting) {
+   	xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
+                       "Initializing color map\n");
+        if (!miCreateDefColormap(pScreen))
+            return FALSE;
+        /* all radeons support 10 bit CLUTs */
+        if (!xf86HandleColormaps(pScreen, 256, 10,
+			         RADEONLoadPalette, NULL,
+			         CMAP_PALETTED_TRUECOLOR
 #if 0 /* This option messes up text mode! (eich@suse.de) */
-			     | CMAP_LOAD_EVEN_IF_OFFSCREEN
+			         | CMAP_LOAD_EVEN_IF_OFFSCREEN
 #endif
-			     | CMAP_RELOAD_ON_MODE_SWITCH)) return FALSE;
-
+			         | CMAP_RELOAD_ON_MODE_SWITCH))
+            return FALSE;
+    } else {
+	if (!drmmode_setup_colormap(pScreen, pScrn))
+	    return FALSE;
+    }
     /* Note unused options */
     if (serverGeneration == 1)
 	xf86ShowUnusedOptions(pScrn->scrnIndex, pScrn->options);

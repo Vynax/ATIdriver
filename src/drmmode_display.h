@@ -50,6 +50,7 @@ typedef struct {
     dri_bo *cursor_bo;
     dri_bo *rotate_bo;
     int rotate_fb_id;
+    uint16_t lut_r[256], lut_g[256], lut_b[256];
 } drmmode_crtc_private_rec, *drmmode_crtc_private_ptr;
 
 typedef struct {
@@ -69,6 +70,7 @@ extern void drmmode_set_cursor(ScrnInfoPtr scrn, drmmode_ptr drmmode, int id, dr
 void drmmode_adjust_frame(ScrnInfoPtr pScrn, drmmode_ptr drmmode, int x, int y, int flags);
 extern Bool drmmode_set_desired_modes(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
 extern void drmmode_copy_fb(ScrnInfoPtr pScrn, drmmode_ptr drmmode);
+extern Bool drmmode_setup_colormap(ScreenPtr pScreen, ScrnInfoPtr pScrn);
 #endif
 
 #endif
