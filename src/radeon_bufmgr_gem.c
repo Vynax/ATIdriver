@@ -265,7 +265,7 @@ void radeon_bufmgr_gem_wait_rendering(dri_bo *buf)
 		do {
 		ret = drmCommandWriteRead(bufmgr_gem->fd, DRM_RADEON_GEM_WAIT_IDLE,
 					  &args, sizeof(args));
-		} while (ret == -EAGAIN);
+		} while (ret == -EBUSY);
 	}
 	return;
 }
