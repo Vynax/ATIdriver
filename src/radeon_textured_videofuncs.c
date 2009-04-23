@@ -263,6 +263,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 
 	txfilter = (R300_TX_CLAMP_S(R300_TX_CLAMP_CLAMP_LAST) |
 		    R300_TX_CLAMP_T(R300_TX_CLAMP_CLAMP_LAST) |
+		    R300_TX_CLAMP_R(R300_TX_CLAMP_CLAMP_LAST) |
 		    R300_TX_MAG_FILTER_LINEAR |
 		    R300_TX_MIN_FILTER_LINEAR |
 		    (0 << R300_TX_ID_SHIFT));
@@ -299,6 +300,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	    txpitch -= 1;
 	    txfilter = (R300_TX_CLAMP_S(R300_TX_CLAMP_CLAMP_LAST) |
 		        R300_TX_CLAMP_T(R300_TX_CLAMP_CLAMP_LAST) |
+		        R300_TX_CLAMP_R(R300_TX_CLAMP_CLAMP_LAST) |
 			R300_TX_MIN_FILTER_LINEAR |
 			R300_TX_MAG_FILTER_LINEAR);
 
@@ -334,6 +336,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 		/* Tex filter */
 		txfilter = (R300_TX_CLAMP_S(R300_TX_CLAMP_WRAP) |
 			    R300_TX_CLAMP_T(R300_TX_CLAMP_WRAP) |
+			    R300_TX_CLAMP_R(R300_TX_CLAMP_WRAP) |
 			    R300_TX_MIN_FILTER_NEAREST |
 			    R300_TX_MAG_FILTER_NEAREST |
 			    (1 << R300_TX_ID_SHIFT));
