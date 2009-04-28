@@ -1613,7 +1613,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	    }
 	}
 
-	qwords = info->new_cs ? 8 : 6;
+	qwords = info->new_cs ? 7 : 6;
 	BEGIN_ACCEL(qwords);
 	OUT_ACCEL_REG(R300_TX_INVALTAGS, 0);
 	OUT_ACCEL_REG(R300_TX_ENABLE, txenable);
