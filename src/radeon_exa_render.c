@@ -2200,9 +2200,17 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 do {								\
     OUT_RING_F(_dstX);						\
     OUT_RING_F(_dstY);						\
+    if (_srcX > 1.0) OUT_RING_F(1.0); else                  \
+    if (_srcX < 0.0) OUT_RING_F(0.0); else                  \
     OUT_RING_F(_srcX);						\
+    if (_srcY > 1.0) OUT_RING_F(1.0); else                  \
+    if (_srcY < 0.0) OUT_RING_F(0.0); else                  \
     OUT_RING_F(_srcY);						\
+    if (_maskX > 1.0) OUT_RING_F(1.0); else                  \
+    if (_maskX < 0.0) OUT_RING_F(0.0); else                  \
     OUT_RING_F(_maskX);						\
+    if (_maskY > 1.0) OUT_RING_F(1.0); else                  \
+    if (_maskY < 0.0) OUT_RING_F(0.0); else                  \
     OUT_RING_F(_maskY);						\
 } while (0)
 
@@ -2210,7 +2218,11 @@ do {								\
 do {								\
     OUT_RING_F(_dstX);						\
     OUT_RING_F(_dstY);						\
+    if (_srcX > 1.0) OUT_RING_F(1.0); else                  \
+    if (_srcX < 0.0) OUT_RING_F(0.0); else                  \
     OUT_RING_F(_srcX);						\
+    if (_srcY > 1.0) OUT_RING_F(1.0); else                  \
+    if (_srcY < 0.0) OUT_RING_F(0.0); else                  \
     OUT_RING_F(_srcY);						\
 } while (0)
 
