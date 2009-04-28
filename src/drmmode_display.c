@@ -458,7 +458,11 @@ static void
 drmmode_crtc_gamma_set(xf86CrtcPtr crtc, uint16_t *red, uint16_t *green,
                       uint16_t *blue, int size)
 {
-	return;
+	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
+	drmmode_ptr drmmode = drmmode_crtc->drmmode;
+
+	drmModeCrtcSetGamma(drmmode->fd, drmmode_crtc->mode_crtc->crtc_id,
+			    size, red, green, blue);
 }
 
 static const xf86CrtcFuncsRec drmmode_crtc_funcs = {
@@ -954,8 +958,6 @@ static void drmmode_load_palette(ScrnInfoPtr pScrn, int numColors,
     int index, j, i;
     int c;
 
-
-
     for (c = 0; c < xf86_config->num_crtc; c++) {
         xf86CrtcPtr crtc = xf86_config->crtc[c];
 	drmmode_crtc_private_ptr drmmode_crtc = crtc->driver_private;
@@ -966,8 +968,7 @@ static void drmmode_load_palette(ScrnInfoPtr pScrn, int numColors,
             lut_b[i] = drmmode_crtc->lut_b[i] << 6;
         }
 
-#if 0 //TODO
-        switch (info->CurrentLayout.depth) {
+        switch(pScrn->depth) {
         case 15:
             for (i = 0; i < numColors; i++) {
                 index = indices[i];
@@ -1003,7 +1004,6 @@ static void drmmode_load_palette(ScrnInfoPtr pScrn, int numColors,
               }
               break;
           }
-#endif
 
     /* Make the change through RandR */
 #ifdef RANDR_12_INTERFACE
