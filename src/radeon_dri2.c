@@ -36,15 +36,22 @@
 
 #include "radeon.h"
 #include "radeon_dri2.h"
+#include "radeon_bufmgr_gem.h"
 #include "radeon_version.h"
 
 #ifdef DRI2
 
+#if DRI2INFOREC_VERSION >= 1
+#define USE_DRI2_1_1_0
+#endif
+
 struct dri2_buffer_priv {
     PixmapPtr   pixmap;
+    unsigned int attachment;
 };
 
 
+#ifndef USE_DRI2_1_1_0
 static DRI2BufferPtr
 radeon_dri2_create_buffers(DrawablePtr drawable,
                            unsigned int *attachments,
@@ -55,6 +62,7 @@ radeon_dri2_create_buffers(DrawablePtr drawable,
     struct dri2_buffer_priv *privates;
     PixmapPtr pixmap, depth_pixmap;
     struct radeon_exa_pixmap_priv *driver_priv;
+    int flags = 0;
     int i, r;
 
     buffers = xcalloc(count, sizeof *buffers);
@@ -73,6 +81,7 @@ radeon_dri2_create_buffers(DrawablePtr drawable,
             if (drawable->type == DRAWABLE_PIXMAP) {
                 pixmap = (Pixmap*)drawable;
             } else {
+                flags = DRI2_BUFFER_DONT_SEND;
                 pixmap = (*pScreen->GetWindowPixmap)((WindowPtr)drawable);
             }
             pixmap->refcnt++;
@@ -103,12 +112,81 @@ radeon_dri2_create_buffers(DrawablePtr drawable,
         buffers[i].pitch = pixmap->devKind;
         buffers[i].cpp = pixmap->drawable.bitsPerPixel / 8;
         buffers[i].driverPrivate = &privates[i];
-        buffers[i].flags = 0; /* not tiled */
+        buffers[i].flags = flags;
         privates[i].pixmap = pixmap;
+        privates[i].attachment = attachments[i];
     }
     return buffers;
 }
+#else
+static DRI2BufferPtr
+radeon_dri2_create_buffer(DrawablePtr drawable,
+                          unsigned int attachment,
+                          unsigned int format)
+{
+    ScreenPtr pScreen = drawable->pScreen;
+    DRI2BufferPtr buffers;
+    struct dri2_buffer_priv *privates;
+    PixmapPtr pixmap, depth_pixmap;
+    struct radeon_exa_pixmap_priv *driver_priv;
+    int r;
 
+    buffers = xcalloc(1, sizeof *buffers);
+    if (buffers == NULL) {
+        return NULL;
+    }
+    privates = xcalloc(1, sizeof(struct dri2_buffer_priv));
+    if (privates == NULL) {
+        xfree(buffers);
+        return NULL;
+    }
+
+    depth_pixmap = NULL;
+
+    if (attachment == DRI2BufferFrontLeft) {
+        if (drawable->type == DRAWABLE_PIXMAP) {
+            pixmap = (PixmapPtr)drawable;
+        } else {
+            pixmap = (*pScreen->GetWindowPixmap)((WindowPtr)drawable);
+        }
+        pixmap->refcnt++;
+    } else if (attachment == DRI2BufferStencil && depth_pixmap) {
+        pixmap = depth_pixmap;
+        pixmap->refcnt++;
+    } else {
+        pixmap = (*pScreen->CreatePixmap)(pScreen,
+                drawable->width,
+                drawable->height,
+                (format != 0)?format:drawable->depth,
+                0);
+    }
+
+    if (attachment == DRI2BufferDepth) {
+        depth_pixmap = pixmap;
+    }
+    driver_priv = exaGetPixmapDriverPrivate(pixmap);
+    r = radeon_bo_gem_name_buffer(driver_priv->bo, &buffers->name);
+    if (r) {
+        /* FIXME: cleanup */
+        fprintf(stderr, "flink error: %d %s\n", r, strerror(r));
+        xfree(buffers);
+        xfree(privates);
+        return NULL;
+    }
+    buffers->attachment = attachment;
+    buffers->pitch = pixmap->devKind;
+    buffers->cpp = pixmap->drawable.bitsPerPixel / 8;
+    buffers->driverPrivate = privates;
+    buffers->format = format;
+    buffers->flags = 0; /* not tiled */
+    privates->pixmap = pixmap;
+    privates->attachment = attachment;
+
+    return buffers;
+}
+#endif
+
+#ifndef USE_DRI2_1_1_0
 static void
 radeon_dri2_destroy_buffers(DrawablePtr drawable,
                             DRI2BufferPtr buffers,
@@ -127,6 +205,23 @@ radeon_dri2_destroy_buffers(DrawablePtr drawable,
         xfree(buffers);
     }
 }
+#else
+static void
+radeon_dri2_destroy_buffer(DrawablePtr drawable, DRI2BufferPtr buffers)
+{
+    if(buffers)
+    {
+        ScreenPtr pScreen = drawable->pScreen;
+        struct dri2_buffer_priv *private;
+
+        private = buffers->driverPrivate;
+        (*pScreen->DestroyPixmap)(private->pixmap);
+
+        xfree(buffers->driverPrivate);
+        xfree(buffers);
+    }
+}
+#endif
 
 static void
 radeon_dri2_copy_region(DrawablePtr drawable,
@@ -134,19 +229,29 @@ radeon_dri2_copy_region(DrawablePtr drawable,
                         DRI2BufferPtr dest_buffer,
                         DRI2BufferPtr src_buffer)
 {
-    struct dri2_buffer_priv *private = src_buffer->driverPrivate;
+    struct dri2_buffer_priv *src_private = src_buffer->driverPrivate;
+    struct dri2_buffer_priv *dst_private = dest_buffer->driverPrivate;
     ScreenPtr pScreen = drawable->pScreen;
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
-    PixmapPtr pixmap = private->pixmap;
+    PixmapPtr src_pixmap;
+    PixmapPtr dst_pixmap;
     RegionPtr copy_clip;
     GCPtr gc;
 
+    src_pixmap = src_private->pixmap;
+    dst_pixmap = dst_private->pixmap;
+    if (src_private->attachment == DRI2BufferFrontLeft) {
+        src_pixmap = (PixmapPtr)drawable;
+    }
+    if (dst_private->attachment == DRI2BufferFrontLeft) {
+        dst_pixmap = (PixmapPtr)drawable;
+    }
     gc = GetScratchGC(drawable->depth, pScreen);
     copy_clip = REGION_CREATE(pScreen, NULL, 0);
     REGION_COPY(pScreen, copy_clip, region);
     (*gc->funcs->ChangeClip) (gc, CT_REGION, copy_clip, 0);
-    ValidateGC(drawable, gc);
-    (*gc->ops->CopyArea)(&pixmap->drawable, drawable, gc,
+    ValidateGC(&dst_pixmap->drawable, gc);
+    (*gc->ops->CopyArea)(&src_pixmap->drawable, &dst_pixmap->drawable, gc,
                          0, 0, drawable->width, drawable->height, 0, 0);
     FreeScratchGC(gc);
     RADEONCPReleaseIndirect(pScrn);
@@ -207,16 +312,21 @@ radeon_dri2_screen_init(ScreenPtr pScreen)
     }
     dri2_info.fd = info->dri2.drm_fd;
     dri2_info.deviceName = info->dri2.device_name;
+#ifndef USE_DRI2_1_1_0
     dri2_info.version = 1;
     dri2_info.CreateBuffers = radeon_dri2_create_buffers;
     dri2_info.DestroyBuffers = radeon_dri2_destroy_buffers;
+#else
+    dri2_info.version = 2;
+    dri2_info.CreateBuffer = radeon_dri2_create_buffer;
+    dri2_info.DestroyBuffer = radeon_dri2_destroy_buffer;
+#endif
     dri2_info.CopyRegion = radeon_dri2_copy_region;
     info->dri2.enabled = DRI2ScreenInit(pScreen, &dri2_info);
     return info->dri2.enabled;
 }
 
-void
-radeon_dri2_close_screen(ScreenPtr pScreen)
+void radeon_dri2_close_screen(ScreenPtr pScreen)
 {
     DRI2CloseScreen(pScreen);
 }
