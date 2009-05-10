@@ -117,7 +117,7 @@ if test "$DRI" = yes; then
 	fi
 
         save_CFLAGS="$CFLAGS"
-        CFLAGS="$XORG_CFLAGS $DRI_CFLAGS"
+        CFLAGS="$XORG_CFLAGS $DRI_CFLAGS $CFLAGS"
         AC_CHECK_HEADER(xf86drmMode.h,[DRM_MODE=yes],[DRM_MODE=no],[#include <stdint.h>
 #include <stdlib.h>])
         if test "x$DRM_MODE" = xyes; then
@@ -363,9 +363,9 @@ echo ""
 echo "        Kernel modesetting:  $DRM_MODE"
 
 echo ""
-echo "        CFLAGS:              $cflags"
-echo "        CXXFLAGS:            $cxxflags"
-echo "        Macros:              $defines"
+echo "        CFLAGS:              $CFLAGS"
+echo "        CXXFLAGS:            $CXXFLAGS"
+echo "        Macros:              $DEFINES"
 
 echo ""
 echo "        Run '${MAKE-make}' to build xf86-video-ati"

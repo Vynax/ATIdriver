@@ -62,7 +62,6 @@ radeon_dri2_create_buffers(DrawablePtr drawable,
     struct dri2_buffer_priv *privates;
     PixmapPtr pixmap, depth_pixmap;
     struct radeon_exa_pixmap_priv *driver_priv;
-    int flags = 0;
     int i, r;
 
     buffers = xcalloc(count, sizeof *buffers);
@@ -81,7 +80,6 @@ radeon_dri2_create_buffers(DrawablePtr drawable,
             if (drawable->type == DRAWABLE_PIXMAP) {
                 pixmap = (Pixmap*)drawable;
             } else {
-                flags = DRI2_BUFFER_DONT_SEND;
                 pixmap = (*pScreen->GetWindowPixmap)((WindowPtr)drawable);
             }
             pixmap->refcnt++;
@@ -112,7 +110,7 @@ radeon_dri2_create_buffers(DrawablePtr drawable,
         buffers[i].pitch = pixmap->devKind;
         buffers[i].cpp = pixmap->drawable.bitsPerPixel / 8;
         buffers[i].driverPrivate = &privates[i];
-        buffers[i].flags = flags;
+        buffers[i].flags = 0;
         privates[i].pixmap = pixmap;
         privates[i].attachment = attachments[i];
     }
