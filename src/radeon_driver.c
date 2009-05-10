@@ -2826,15 +2826,23 @@ static Bool radeon_kernel_mode_enabled(ScrnInfoPtr pScrn)
     pEnt = xf86GetEntityInfo(pScrn->entityList[0]);
     PciInfo = xf86GetPciInfoForEntity(pEnt->index);
 
-    if (!xf86LoaderCheckSymbol("DRICreatePCIBusID"))
+    if (!xf86LoaderCheckSymbol("DRICreatePCIBusID")) {
+	xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
+		   "[KMS] No DRICreatePCIBusID symbol, no kernel modesetting.\n");
 	return FALSE;
+    }
 
     busIdString = DRICreatePCIBusID(PciInfo);
     ret = drmCheckModesettingSupported(busIdString);
     xfree(busIdString);
-    if (ret)
+    if (ret) {
+	xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
+		   "[KMS] drm report modesetting isn't supported.\n");
 	return FALSE;
+    }
 
+    xf86DrvMsgVerb(pScrn->scrnIndex, X_INFO, RADEON_LOGLEVEL_DEBUG,
+		   "[KMS] Kernel modesetting enabled.\n");
     return TRUE;
 }
 #else
