@@ -470,7 +470,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 						   R300_RS_COUNT_HIRES_EN));
 
 		/* R300_INST_COUNT_RS - highest RS instruction used */
-		OUT_ACCEL_REG(R300_RS_INST_COUNT, R300_INST_COUNT_RS(1) | R300_TX_OFFSET_RS(6));
+		OUT_ACCEL_REG(R300_RS_INST_COUNT, R300_INST_COUNT_RS(1));
 
 		/* Pixel stack frame size. */
 		OUT_ACCEL_REG(R300_US_PIXSIZE, 5);
@@ -847,7 +847,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			  ((2 << R300_RS_COUNT_IT_COUNT_SHIFT) |
 			   R300_RS_COUNT_HIRES_EN));
 		/* R300_INST_COUNT_RS - highest RS instruction used */
-		OUT_ACCEL_REG(R300_RS_INST_COUNT, R300_INST_COUNT_RS(0) | R300_TX_OFFSET_RS(6));
+		OUT_ACCEL_REG(R300_RS_INST_COUNT, R300_INST_COUNT_RS(0));
 
 		OUT_ACCEL_REG(R300_US_PIXSIZE, 2); /* highest temp used */
 
@@ -979,7 +979,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			  ((2 << R300_RS_COUNT_IT_COUNT_SHIFT) |
 			   R300_RS_COUNT_HIRES_EN));
 		/* R300_INST_COUNT_RS - highest RS instruction used */
-		OUT_ACCEL_REG(R300_RS_INST_COUNT, R300_INST_COUNT_RS(0) | R300_TX_OFFSET_RS(6));
+		OUT_ACCEL_REG(R300_RS_INST_COUNT, R300_INST_COUNT_RS(0));
 
 		OUT_ACCEL_REG(R300_US_PIXSIZE, 0); /* highest temp used */
 
@@ -1052,7 +1052,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			       R300_RS_COUNT_HIRES_EN));
 
 		/* R300_INST_COUNT_RS - highest RS instruction used */
-		OUT_ACCEL_REG(R300_RS_INST_COUNT, R300_INST_COUNT_RS(1) | R300_TX_OFFSET_RS(6));
+		OUT_ACCEL_REG(R300_RS_INST_COUNT, R300_INST_COUNT_RS(1));
 
 		/* Pixel stack frame size. */
 		OUT_ACCEL_REG(R300_US_PIXSIZE, 5);
@@ -1524,7 +1524,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			       R300_RS_COUNT_HIRES_EN));
 
 		/* R300_INST_COUNT_RS - highest RS instruction used */
-		OUT_ACCEL_REG(R300_RS_INST_COUNT, R300_INST_COUNT_RS(0) | R300_TX_OFFSET_RS(6));
+		OUT_ACCEL_REG(R300_RS_INST_COUNT, R300_INST_COUNT_RS(0));
 
 		/* Pixel stack frame size. */
 		OUT_ACCEL_REG(R300_US_PIXSIZE, 0); /* highest temp used */
@@ -2143,10 +2143,10 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	    BEGIN_ACCEL(2);
 	    if (IS_R300_3D) {
 		/* R300 has an offset */
-		OUT_ACCEL_REG(R300_SC_SCISSOR0, (((dstX + 1088) << R300_SCISSOR_X_SHIFT) |
-						 ((dstY + 1088) << R300_SCISSOR_Y_SHIFT)));
-		OUT_ACCEL_REG(R300_SC_SCISSOR1, (((dstX + dstw + 1088 - 1) << R300_SCISSOR_X_SHIFT) |
-						 ((dstY + dsth + 1088 - 1) << R300_SCISSOR_Y_SHIFT)));
+	        OUT_ACCEL_REG(R300_SC_SCISSOR0, (((dstX + 1440) << R300_SCISSOR_X_SHIFT) |
+                                                 ((dstY + 1440) << R300_SCISSOR_Y_SHIFT)));
+                OUT_ACCEL_REG(R300_SC_SCISSOR1, (((dstX + dstw + 1440 - 1) << R300_SCISSOR_X_SHIFT) |
+                                                 ((dstY + dsth + 1440 - 1) << R300_SCISSOR_Y_SHIFT)));
 	    } else {
 		OUT_ACCEL_REG(R300_SC_SCISSOR0, (((dstX) << R300_SCISSOR_X_SHIFT) |
 						 ((dstY) << R300_SCISSOR_Y_SHIFT)));
