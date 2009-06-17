@@ -101,10 +101,6 @@ static void FUNC_NAME(RADEONInit3DEngine)(ScrnInfoPtr pScrn)
 	    OUT_ACCEL_REG(R500_SU_REG_DEST, su_reg_dest);
 	    OUT_ACCEL_REG(R500_VAP_INDEX_OFFSET, 0);
 	    FINISH_ACCEL();
-        } else {
-	    BEGIN_ACCEL(1);
-	    OUT_ACCEL_REG(R500_VAP_INDEX_OFFSET, 0);
-	    FINISH_ACCEL();
         }
 	}
 
