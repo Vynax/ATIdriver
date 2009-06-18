@@ -120,7 +120,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
     dri_bo *dst_bo;
     uint32_t txformat;
     uint32_t txfilter, txformat0, txformat1, txoffset, txpitch;
-    uint32_t dst_offset, dst_pitch, dst_format;
+    uint32_t  dst_pitch, dst_format;
     uint32_t txenable, colorpitch;
     uint32_t blendcntl;
     Bool isplanar = FALSE;
@@ -165,20 +165,12 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 
 #ifdef USE_EXA
     if (info->useEXA) {
-	if (info->new_cs) {
-	    driver_priv = exaGetPixmapDriverPrivate(pPixmap);
-	    if (driver_priv)
-		dst_bo = driver_priv->bo;
-	} else {
-	    dst_offset = exaGetPixmapOffset(pPixmap);
-	}
 	dst_pitch = exaGetPixmapPitch(pPixmap);
     } else
 #endif
-	{
-	    dst_offset = (pPixmap->devPrivate.ptr - info->FB);
-	    dst_pitch = pPixmap->devKind;
-	}
+    {
+        dst_pitch = pPixmap->devKind;
+    }
 
 #ifdef COMPOSITE
     dstxoff = -pPixmap->screen_x + pPixmap->drawable.x;
@@ -1613,13 +1605,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	OUT_ACCEL_REG(R300_TX_INVALTAGS, 0);
 	OUT_ACCEL_REG(R300_TX_ENABLE, txenable);
 
-	if (info->new_cs) {
-	    OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, 0);
-	    OUT_RELOC(dst_bo, 0, RADEON_GEM_DOMAIN_VRAM);
-	} else {
-	    dst_offset += info->fbLocation + pScrn->fbOffset;
-	    OUT_ACCEL_REG(R300_RB3D_COLOROFFSET0, dst_offset);
-	}
+	EMIT_WRITE_OFFSET(R300_RB3D_COLOROFFSET0, 0, pPixmap);
 	OUT_ACCEL_REG(R300_RB3D_COLORPITCH0, colorpitch);
 
 	blendcntl = RADEON_SRC_BLEND_GL_ONE | RADEON_DST_BLEND_GL_ZERO;
@@ -1671,13 +1657,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	OUT_ACCEL_REG(RADEON_RB3D_CNTL,
 		      dst_format /*| RADEON_ALPHA_BLEND_ENABLE*/);
 
-	if (info->new_cs) {
-	    OUT_ACCEL_REG(RADEON_RB3D_COLOROFFSET, 0);
-	    OUT_RELOC(dst_bo, 0, RADEON_GEM_DOMAIN_VRAM);
-	} else {
-	    dst_offset += info->fbLocation + pScrn->fbOffset;
-	    OUT_ACCEL_REG(RADEON_RB3D_COLOROFFSET, dst_offset);
-	}
+	EMIT_WRITE_OFFSET(RADEON_RB3D_COLOROFFSET, 0, pPixmap);
 
 	OUT_ACCEL_REG(RADEON_RB3D_COLORPITCH, colorpitch);
 
