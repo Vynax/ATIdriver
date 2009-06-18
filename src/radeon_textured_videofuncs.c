@@ -127,7 +127,6 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
     int dstxoff, dstyoff, pixel_shift, vtx_count;
     BoxPtr pBox = REGION_RECTS(&pPriv->clip);
     int nBox = REGION_NUM_RECTS(&pPriv->clip);
-    int qwords;
     ACCEL_PREAMBLE();
 
  retry:
@@ -291,8 +290,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	else
 		txoffset = pPriv->src_offset;
 
-	qwords = info->new_cs ? 7 : 6;
-	BEGIN_ACCEL(qwords);
+	BEGIN_ACCEL_RELOC(6, 1);
 	OUT_ACCEL_REG(R300_TX_FILTER0_0, txfilter);
 	OUT_ACCEL_REG(R300_TX_FILTER1_0, 0);
 	OUT_ACCEL_REG(R300_TX_FORMAT0_0, txformat0);
@@ -314,8 +312,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			R300_TX_MIN_FILTER_LINEAR |
 			R300_TX_MAG_FILTER_LINEAR);
 
-		qwords = info->new_cs ? 14 : 12;
-		BEGIN_ACCEL(qwords);
+		BEGIN_ACCEL_RELOC(12, 2);
 		OUT_ACCEL_REG(R300_TX_FILTER0_1, txfilter | (1 << R300_TX_ID_SHIFT));
 		OUT_ACCEL_REG(R300_TX_FILTER1_1, 0);
 		OUT_ACCEL_REG(R300_TX_FORMAT0_1, txformat0);
@@ -350,8 +347,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			    R300_TX_MAG_FILTER_NEAREST |
 			    (1 << R300_TX_ID_SHIFT));
 
-		qwords = info->new_cs ? 7 : 6;
-		BEGIN_ACCEL(qwords);
+		BEGIN_ACCEL_RELOC(6, 1);
 		OUT_ACCEL_REG(R300_TX_FILTER0_1, txfilter);
 		OUT_ACCEL_REG(R300_TX_FILTER1_1, 0);
 		OUT_ACCEL_REG(R300_TX_FORMAT0_1, txformat0);
@@ -1613,8 +1609,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	    }
 	}
 
-	qwords = info->new_cs ? 7 : 6;
-	BEGIN_ACCEL(qwords);
+	BEGIN_ACCEL_RELOC(6, 1);
 	OUT_ACCEL_REG(R300_TX_INVALTAGS, 0);
 	OUT_ACCEL_REG(R300_TX_ENABLE, txenable);
 
@@ -1671,8 +1666,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	if (RADEONTilingEnabled(pScrn, pPixmap))
 	    colorpitch |= RADEON_COLOR_TILE_ENABLE;
 
-	qwords = info->new_cs ? 5 : 4;
-	BEGIN_ACCEL(qwords);
+	BEGIN_ACCEL_RELOC(4, 1);
 
 	OUT_ACCEL_REG(RADEON_RB3D_CNTL,
 		      dst_format /*| RADEON_ALPHA_BLEND_ENABLE*/);
@@ -1722,8 +1716,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			    R200_CLAMP_S_CLAMP_LAST |
 			    R200_CLAMP_T_CLAMP_LAST;
 
-		qwords = info->new_cs ? 39 : 36;
-		BEGIN_ACCEL(qwords);
+		BEGIN_ACCEL_RELOC(36, 3);
 
 		OUT_ACCEL_REG(RADEON_PP_CNTL,
 			      RADEON_TEX_0_ENABLE | RADEON_TEX_1_ENABLE | RADEON_TEX_2_ENABLE |
@@ -1893,8 +1886,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 			    R200_CLAMP_S_CLAMP_LAST |
 			    R200_CLAMP_T_CLAMP_LAST;
 
-		qwords = info->new_cs ? 25 : 24;
-		BEGIN_ACCEL(qwords);
+		BEGIN_ACCEL_RELOC(24, 1);
 
 		OUT_ACCEL_REG(RADEON_PP_CNTL,
 			      RADEON_TEX_0_ENABLE |
@@ -1996,8 +1988,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 		FINISH_ACCEL();
 	    }
 	    else {
-		qwords = info->new_cs ? 14 : 13;
-		BEGIN_ACCEL(qwords);
+		BEGIN_ACCEL_RELOC(13, 1);
 		OUT_ACCEL_REG(RADEON_PP_CNTL,
 			      RADEON_TEX_0_ENABLE | RADEON_TEX_BLEND_0_ENABLE);
 
@@ -2041,9 +2032,7 @@ FUNC_NAME(RADEONDisplayTexturedVideo)(ScrnInfoPtr pScrn, RADEONPortPrivPtr pPriv
 	    info->accel_state->texW[0] = 1;
 	    info->accel_state->texH[0] = 1;
 
-	    qwords = info->new_cs ? 10 : 9;
-	    BEGIN_ACCEL(qwords);
-
+	    BEGIN_ACCEL_RELOC(9, 1);
 	    OUT_ACCEL_REG(RADEON_PP_CNTL,
 			  RADEON_TEX_0_ENABLE | RADEON_TEX_BLEND_0_ENABLE);
 

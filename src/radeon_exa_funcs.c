@@ -90,7 +90,6 @@ FUNC_NAME(RADEONSync)(ScreenPtr pScreen, int marker)
 static void FUNC_NAME(Emit2DState)(ScrnInfoPtr pScrn, int op)
 {
     RADEONInfoPtr info = RADEONPTR(pScrn);
-    uint32_t qwords;
     int has_src;
     ACCEL_PREAMBLE();
 
@@ -100,10 +99,11 @@ static void FUNC_NAME(Emit2DState)(ScrnInfoPtr pScrn, int op)
 
     has_src = info->state_2d.src_pitch_offset || (info->new_cs && info->state_2d.src_bo);
 
-    qwords = info->new_cs ? 10 : 9;
-    qwords += (has_src ? (info->new_cs ?  2 : 1) : 0);
-
-    BEGIN_ACCEL(qwords);
+    if (has_src) {
+      BEGIN_ACCEL_RELOC(10, 2);
+    } else {
+      BEGIN_ACCEL_RELOC(9, 1);
+    }
     OUT_ACCEL_REG(RADEON_DEFAULT_SC_BOTTOM_RIGHT, info->state_2d.default_sc_bottom_right);
     OUT_ACCEL_REG(RADEON_DP_GUI_MASTER_CNTL, info->state_2d.dp_gui_master_cntl);
     OUT_ACCEL_REG(RADEON_DP_BRUSH_FRGD_CLR, info->state_2d.dp_brush_frgd_clr);
@@ -450,14 +450,9 @@ RADEONBlitChunk(ScrnInfoPtr pScrn, uint32_t datatype, dri_bo *src_bo, dri_bo *ds
 		int w, int h)
 {
     RADEONInfoPtr info = RADEONPTR(pScrn);
-    uint32_t qwords;
     ACCEL_PREAMBLE();
 
-    qwords = 6;
-    if (src_bo && dst_bo)
-	qwords += 2;
-
-    BEGIN_ACCEL(qwords);
+    BEGIN_ACCEL_RELOC(6, (src_bo && dst_bo) ? 2 : 0);
     OUT_ACCEL_REG(RADEON_DP_GUI_MASTER_CNTL,
 		  RADEON_GMC_DST_PITCH_OFFSET_CNTL |
 		  RADEON_GMC_SRC_PITCH_OFFSET_CNTL |

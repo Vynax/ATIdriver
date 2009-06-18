@@ -471,6 +471,11 @@ static Bool RADEONEXAPixmapIsOffscreen(PixmapPtr pPix)
     return FALSE;
 }
 
+#define BEGIN_ACCEL_RELOC(n, r) do {		\
+	int _nqw = (n) + (info->new_cs ? (r) : 0);	\
+	BEGIN_ACCEL(_nqw);			\
+    } while (0)
+
 #define ENTER_DRAW(x) TRACE
 #define LEAVE_DRAW(x) TRACE
 /***********************************************************************/

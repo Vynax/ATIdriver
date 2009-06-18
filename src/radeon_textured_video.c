@@ -129,6 +129,11 @@ static __inline__ uint32_t float4touint(float fr, float fg, float fb, float fa)
     return (ua << 24) | (ur << 16) | (ug << 8) | ub;
 }
 
+#define BEGIN_ACCEL_RELOC(n, r) do {		\
+	int _nqw = (n) + (info->new_cs ? (r) : 0);	\
+	BEGIN_ACCEL(_nqw);			\
+    } while (0)
+
 #define ACCEL_MMIO
 #define ACCEL_PREAMBLE()	unsigned char *RADEONMMIO = info->MMIO
 #define BEGIN_ACCEL(n)		RADEONWaitForFifo(pScrn, (n))

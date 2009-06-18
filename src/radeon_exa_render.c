@@ -370,7 +370,6 @@ static Bool FUNC_NAME(R100TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	!(unit == 0 && (info->accel_state->need_src_tile_x || info->accel_state->need_src_tile_y));
     int i;
     struct radeon_exa_pixmap_priv *driver_priv;
-    int qwords;
     ACCEL_PREAMBLE();
 
     txpitch = exaGetPixmapPitch(pPix);
@@ -432,8 +431,7 @@ static Bool FUNC_NAME(R100TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	}
     }
 
-    qwords = info->new_cs ? 6 : 5;
-    BEGIN_ACCEL(qwords);
+    BEGIN_ACCEL_RELOC(5, 1);
     if (unit == 0) {
 	OUT_ACCEL_REG(RADEON_PP_TXFILTER_0, txfilter);
 	OUT_ACCEL_REG(RADEON_PP_TXFORMAT_0, txformat);
@@ -578,7 +576,6 @@ static Bool FUNC_NAME(R100PrepareComposite)(int op,
     uint32_t pp_cntl, blendcntl, cblend, ablend;
     int pixel_shift;
     struct radeon_exa_pixmap_priv *driver_priv;
-    int qwords;
     int retry_count = 0;
     struct radeon_space_check bos[3];
     int i, ret;
@@ -665,8 +662,7 @@ static Bool FUNC_NAME(R100PrepareComposite)(int op,
 	info->accel_state->is_transform[1] = FALSE;
     }
 
-    qwords = info->new_cs ? 9 : 8;
-    BEGIN_ACCEL(qwords);
+    BEGIN_ACCEL_RELOC(8, 1);
     OUT_ACCEL_REG(RADEON_PP_CNTL, pp_cntl);
     OUT_ACCEL_REG(RADEON_RB3D_CNTL, dst_format | RADEON_ALPHA_BLEND_ENABLE);
     if (info->new_cs) {
@@ -777,7 +773,6 @@ static Bool FUNC_NAME(R200TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	!(unit == 0 && (info->accel_state->need_src_tile_x || info->accel_state->need_src_tile_y));
     int i;
     struct radeon_exa_pixmap_priv *driver_priv;
-    int qwords;
     ACCEL_PREAMBLE();
 
     txpitch = exaGetPixmapPitch(pPix);
@@ -843,8 +838,7 @@ static Bool FUNC_NAME(R200TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	}
     }
 
-    qwords = info->new_cs ? 7 : 6;
-    BEGIN_ACCEL(qwords);
+    BEGIN_ACCEL_RELOC(6, 1);
     if (unit == 0) {
 	OUT_ACCEL_REG(R200_PP_TXFILTER_0, txfilter);
 	OUT_ACCEL_REG(R200_PP_TXFORMAT_0, txformat);
@@ -972,7 +966,6 @@ static Bool FUNC_NAME(R200PrepareComposite)(int op, PicturePtr pSrcPicture,
     uint32_t pp_cntl, blendcntl, cblend, ablend, colorpitch;
     int pixel_shift;
     struct radeon_exa_pixmap_priv *driver_priv;
-    int qwords;
     int retry_count = 0;
     struct radeon_space_check bos[3];
     int i, ret;
@@ -1058,8 +1051,7 @@ static Bool FUNC_NAME(R200PrepareComposite)(int op, PicturePtr pSrcPicture,
 	info->accel_state->is_transform[1] = FALSE;
     }
 
-    qwords = info->new_cs ? 12 : 11;
-    BEGIN_ACCEL(qwords);
+    BEGIN_ACCEL_RELOC(11, 1);
 
     OUT_ACCEL_REG(RADEON_PP_CNTL, pp_cntl);
     OUT_ACCEL_REG(RADEON_RB3D_CNTL, dst_format | RADEON_ALPHA_BLEND_ENABLE);
@@ -1214,7 +1206,6 @@ static Bool FUNC_NAME(R300TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
     int h = pPict->pDrawable->height;
     int i, pixel_shift;
     struct radeon_exa_pixmap_priv *driver_priv;
-    int qwords;
     ACCEL_PREAMBLE();
 
     TRACE;
@@ -1312,10 +1303,7 @@ static Bool FUNC_NAME(R300TextureSetup)(PicturePtr pPict, PixmapPtr pPix,
 	RADEON_FALLBACK(("Bad filter 0x%x\n", pPict->filter));
     }
 
-    qwords = pPict->repeat ? 6 : 7;
-    qwords += info->new_cs ? 1 : 0;
-
-    BEGIN_ACCEL(qwords);
+    BEGIN_ACCEL_RELOC(pPict->repeat ? 6 : 7, 1);
     OUT_ACCEL_REG(R300_TX_FILTER0_0 + (unit * 4), txfilter);
     OUT_ACCEL_REG(R300_TX_FILTER1_0 + (unit * 4), 0);
     OUT_ACCEL_REG(R300_TX_FORMAT0_0 + (unit * 4), txformat0);
@@ -1442,7 +1430,7 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
     uint32_t txenable, colorpitch;
     uint32_t blendcntl;
     int pixel_shift;
-    int qwords, ret;
+    int ret;
     int retry_count = 0;
     struct radeon_exa_pixmap_priv *driver_priv;
     struct radeon_space_check bos[3];
@@ -2181,8 +2169,8 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
     FINISH_ACCEL();
     }
 
-    qwords = info->new_cs ? 4 : 3;
-    BEGIN_ACCEL(qwords);
+    
+    BEGIN_ACCEL_RELOC(3, 1);
     if (info->new_cs) {
         driver_priv = exaGetPixmapDriverPrivate(pDst);
 	assert(driver_priv);
