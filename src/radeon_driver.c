@@ -80,6 +80,7 @@
 #define _XF86DRI_SERVER_
 #include "radeon_dri.h"
 #include "radeon_drm.h"
+#include "radeon_bufmgr_gem.h"
 #include "sarea.h"
 #endif
 
