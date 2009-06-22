@@ -345,7 +345,11 @@ drmmode_load_cursor_argb (xf86CrtcPtr crtc, CARD32 *image)
 	/* cursor should be mapped already */
 	ptr = drmmode_crtc->cursor_bo->virtual;
 
+#if X_BYTE_ORDER == X_BIG_ENDIAN
+	RADEONCopySwap(ptr, image, 64 * 64 * 4, RADEON_HOST_DATA_SWAP_32BIT);
+#else
 	memcpy (ptr, image, 64 * 64 * 4);
+#endif
 
 	return;
 }
