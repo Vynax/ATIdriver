@@ -43,6 +43,7 @@
 #include "radeon_probe.h"
 #include "radeon_version.h"
 #include "radeon_exa_shared.h"
+#include "radeon_vbo.h"
 
 #include "xf86.h"
 

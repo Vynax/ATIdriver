@@ -54,6 +54,17 @@
 #define ONLY_ONCE
 #endif
 
+#ifdef ACCEL_CP
+static void RadeonCompositeTile_VBO(ScrnInfoPtr pScrn,
+				    RADEONInfoPtr info,
+				    PixmapPtr pDst,
+				    int srcX, int srcY,
+				    int maskX, int maskY,
+				    int dstX, int dstY,
+				    int w, int h);
+#endif
+
+
 /* Only include the following (generic) bits once. */
 #ifdef ONLY_ONCE
 
@@ -62,6 +73,7 @@ struct blendinfo {
     Bool src_alpha;
     uint32_t blend_cntl;
 };
+
 
 static struct blendinfo RadeonBlendOp[] = {
     /* Clear */
@@ -1482,15 +1494,33 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 			     pSrc, pMask, pDst);
 
     /* have to execute switch after doing buffer sizing check as the latter flushes */
+    if (info->accel_state->use_vbos) {
+	if (pMask)
+	    radeon_vbo_check(pScrn, 24);
+	else
+	    radeon_vbo_check(pScrn, 16);
+	radeon_cp_start(pScrn);
+    }
+
     RADEON_SWITCH_TO_3D();
 
-    if (!FUNC_NAME(R300TextureSetup)(pSrcPicture, pSrc, 0))
+    if (!FUNC_NAME(R300TextureSetup)(pSrcPicture, pSrc, 0)) {
+	if (info->accel_state->use_vbos) {
+	    radeon_ib_discard(pScrn);
+	    radeon_vb_discard(pScrn);
+	}
 	return FALSE;
+    }
     txenable = R300_TEX_0_ENABLE;
 
     if (pMask != NULL) {
-	if (!FUNC_NAME(R300TextureSetup)(pMaskPicture, pMask, 1))
+	if (!FUNC_NAME(R300TextureSetup)(pMaskPicture, pMask, 1)) {
+	    if (info->accel_state->use_vbos) {
+		radeon_ib_discard(pScrn);
+		radeon_vb_discard(pScrn);
+	    }
 	    return FALSE;
+	}
 	txenable |= R300_TEX_1_ENABLE;
     } else {
 	info->accel_state->is_transform[1] = FALSE;
@@ -2096,6 +2126,8 @@ static Bool FUNC_NAME(R300PrepareComposite)(int op, PicturePtr pSrcPicture,
 	OUT_ACCEL_REG(R300_VAP_VTX_SIZE, 4);
     FINISH_ACCEL();
 
+    if (info->accel_state->vsync)
+	RADEONVlineHelperClear(pScrn);
     return TRUE;
 }
 
@@ -2280,10 +2312,11 @@ static void FUNC_NAME(RadeonCompositeTile)(ScrnInfoPtr pScrn,
     } else
 	vtx_count = 4;
 
-    if (info->accel_state->vsync)
-	FUNC_NAME(RADEONWaitForVLine)(pScrn, pDst,
+    if (info->accel_state->vsync) {
+        FUNC_NAME(RADEONWaitForVLine)(pScrn, pDst,
 				      radeon_pick_best_crtc(pScrn, dstX, dstX + w, dstY, dstY + h),
 				      dstY, dstY + h);
+    }
 
 #ifdef ACCEL_CP
     if (info->ChipFamily < CHIP_FAMILY_R200) {
@@ -2438,13 +2471,24 @@ static void FUNC_NAME(RadeonComposite)(PixmapPtr pDst,
     RINFO_FROM_SCREEN(pDst->drawable.pScreen);
 
     if (!info->accel_state->need_src_tile_x && !info->accel_state->need_src_tile_y) {
-	FUNC_NAME(RadeonCompositeTile)(pScrn,
-				       info,
-				       pDst,
-				       srcX, srcY,
-				       maskX, maskY,
-				       dstX, dstY,
-				       width, height);
+#ifdef ACCEL_CP
+	if (info->accel_state->use_vbos)
+	    RadeonCompositeTile_VBO(pScrn,
+				    info,
+				    pDst,
+				    srcX, srcY,
+				    maskX, maskY,
+				    dstX, dstY,
+				    width, height);
+	else
+#endif
+	    FUNC_NAME(RadeonCompositeTile)(pScrn,
+					   info,
+					   pDst,
+					   srcX, srcY,
+					   maskX, maskY,
+					   dstX, dstY,
+					   width, height);
 	return;
     }
 
@@ -2474,13 +2518,24 @@ static void FUNC_NAME(RadeonComposite)(PixmapPtr pDst,
 		w = remainingWidth;
 	    remainingWidth -= w;
 	    
-	    FUNC_NAME(RadeonCompositeTile)(pScrn,
-					   info,
-					   pDst,
-					   tileSrcX, tileSrcY,
-					   tileMaskX, tileMaskY,
-					   tileDstX, tileDstY,
-					   w, h);
+#ifdef ACCEL_CP
+	    if (info->accel_state->use_vbos)
+		RadeonCompositeTile_VBO(pScrn,
+					info,
+					pDst,
+					tileSrcX, tileSrcY,
+					tileMaskX, tileMaskY,
+					tileDstX, tileDstY,
+					w, h);
+	    else
+#endif
+		FUNC_NAME(RadeonCompositeTile)(pScrn,
+					       info,
+					       pDst,
+					       tileSrcX, tileSrcY,
+					       tileMaskX, tileMaskY,
+					       tileDstX, tileDstY,
+					       w, h);
 	    
 	    tileSrcX = 0;
 	    tileMaskX += w;
@@ -2491,6 +2546,198 @@ static void FUNC_NAME(RadeonComposite)(PixmapPtr pDst,
 	tileDstY += h;
     }
 }
+
+
+#ifdef ACCEL_CP
+
+void radeon_finish_composite_op(ScrnInfoPtr pScrn, int vtx_size)
+{
+    RADEONInfoPtr info = RADEONPTR(pScrn);
+    struct radeon_accel_state *accel_state = info->accel_state;
+    ACCEL_PREAMBLE();
+    int vb_size_dw, vtx_size_dw;
+
+    if (accel_state->vb_start_op == -1)
+	return;
+
+    if (accel_state->vb_offset == accel_state->vb_start_op) {
+	/* vb discard */
+        radeon_ib_discard(pScrn);
+	radeon_vb_discard(pScrn);
+	return;
+    }
+
+    accel_state->vb_size = accel_state->vb_offset - accel_state->vb_start_op;
+
+    vb_size_dw = accel_state->vb_size / 4;
+    vtx_size_dw = vtx_size / 4;
+
+    BEGIN_RING(14);
+
+    OUT_RING(CP_PACKET3(RADEON_CP_PACKET3_3D_LOAD_VBPNTR, 2));
+    OUT_RING(1);
+    OUT_RING(vtx_size_dw | (vtx_size_dw << 8));
+    OUT_RING(info->accel_state->vb_start_op);
+    OUT_RELOC(accel_state->vb_bo, RADEON_GEM_DOMAIN_GTT, 0);
+    
+    OUT_RING(CP_PACKET3(R200_CP_PACKET3_3D_DRAW_VBUF_2, 0));
+    OUT_RING(RADEON_CP_VC_CNTL_PRIM_TYPE_QUAD_LIST |
+	     RADEON_CP_VC_CNTL_PRIM_WALK_LIST |
+	     ((vb_size_dw / vtx_size_dw) << RADEON_CP_VC_CNTL_NUM_SHIFT));
+
+    OUT_RING_REG(R300_SC_CLIP_RULE, 0xAAAA);
+    OUT_RING_REG(R300_RB3D_DSTCACHE_CTLSTAT, R300_RB3D_DC_FLUSH_ALL);
+    OUT_RING_REG(RADEON_WAIT_UNTIL, RADEON_WAIT_3D_IDLECLEAN);
+    ADVANCE_RING();
+
+    accel_state->vb_start_op = -1;
+    accel_state->ib_reset_op = 0;
+}
+
+static void RadeonDoneComposite_VBO(PixmapPtr pDst)
+{
+    ScrnInfoPtr pScrn = xf86Screens[pDst->drawable.pScreen->myNum];
+    RADEONInfoPtr info = RADEONPTR(pScrn);
+    struct radeon_accel_state *accel_state = info->accel_state;
+    int vtx_size;
+
+    if (accel_state->vsync)
+        RADEONWaitForVLineCP(pScrn, pDst,
+			     accel_state->vline_crtc,
+			     accel_state->vline_y1,
+			     accel_state->vline_y2);
+
+    vtx_size = accel_state->msk_pic ? 24 : 16;
+
+    radeon_finish_composite_op(pScrn, vtx_size);
+}
+
+static void RadeonCompositeTile_VBO(ScrnInfoPtr pScrn,
+				    RADEONInfoPtr info,
+				    PixmapPtr pDst,
+				    int srcX, int srcY,
+				    int maskX, int maskY,
+				    int dstX, int dstY,
+				    int w, int h)
+{
+    xPointFixed srcTopLeft, srcTopRight, srcBottomLeft, srcBottomRight;
+    static xPointFixed maskTopLeft, maskTopRight, maskBottomLeft, maskBottomRight;
+    float *vb;
+    ACCEL_PREAMBLE();
+
+    ENTER_DRAW(0);
+
+    /* ErrorF("RadeonComposite (%d,%d) (%d,%d) (%d,%d) (%d,%d)\n",
+       srcX, srcY, maskX, maskY,dstX, dstY, w, h); */
+
+    srcTopLeft.x     = IntToxFixed(srcX);
+    srcTopLeft.y     = IntToxFixed(srcY);
+    srcTopRight.x    = IntToxFixed(srcX + w);
+    srcTopRight.y    = IntToxFixed(srcY);
+    srcBottomLeft.x  = IntToxFixed(srcX);
+    srcBottomLeft.y  = IntToxFixed(srcY + h);
+    srcBottomRight.x = IntToxFixed(srcX + w);
+    srcBottomRight.y = IntToxFixed(srcY + h);
+
+    if (info->accel_state->is_transform[0]) {
+	if ((info->ChipFamily < CHIP_FAMILY_R300) || !info->accel_state->has_tcl) {
+	    transformPoint(info->accel_state->transform[0], &srcTopLeft);
+	    transformPoint(info->accel_state->transform[0], &srcTopRight);
+	    transformPoint(info->accel_state->transform[0], &srcBottomLeft);
+	    transformPoint(info->accel_state->transform[0], &srcBottomRight);
+	}
+    }
+
+    if (info->accel_state->msk_pic) {
+	maskTopLeft.x     = IntToxFixed(maskX);
+	maskTopLeft.y     = IntToxFixed(maskY);
+	maskTopRight.x    = IntToxFixed(maskX + w);
+	maskTopRight.y    = IntToxFixed(maskY);
+	maskBottomLeft.x  = IntToxFixed(maskX);
+	maskBottomLeft.y  = IntToxFixed(maskY + h);
+	maskBottomRight.x = IntToxFixed(maskX + w);
+	maskBottomRight.y = IntToxFixed(maskY + h);
+
+	if (info->accel_state->is_transform[1]) {
+	    if ((info->ChipFamily < CHIP_FAMILY_R300) || !info->accel_state->has_tcl) {
+		transformPoint(info->accel_state->transform[1], &maskTopLeft);
+		transformPoint(info->accel_state->transform[1], &maskTopRight);
+		transformPoint(info->accel_state->transform[1], &maskBottomLeft);
+		transformPoint(info->accel_state->transform[1], &maskBottomRight);
+	    }
+	}
+    }
+
+    if (info->accel_state->vsync) {
+        RADEONVlineHelperSet(pScrn, dstX, dstY, dstX + w, dstY + h);
+    }
+
+    if (info->accel_state->msk_pic) {
+	vb = radeon_vbo_space(pScrn, 24);
+
+	vb[0] = (float)dstX;
+	vb[1] = (float)dstY;
+	vb[2] = xFixedToFloat(srcTopLeft.x) / info->accel_state->texW[0];
+	vb[3] = xFixedToFloat(srcTopLeft.y) / info->accel_state->texH[0];
+	vb[4] = xFixedToFloat(maskTopLeft.x) / info->accel_state->texW[1];
+	vb[5] = xFixedToFloat(maskTopLeft.y) / info->accel_state->texH[1];
+
+	vb[6] = (float)dstX;
+	vb[7] = (float)(dstY + h);
+	vb[8] = xFixedToFloat(srcBottomLeft.x) / info->accel_state->texW[0];
+	vb[9] = xFixedToFloat(srcBottomLeft.y) / info->accel_state->texH[0];
+	vb[10] = xFixedToFloat(maskBottomLeft.x) / info->accel_state->texW[1];
+	vb[11] = xFixedToFloat(maskBottomLeft.y) / info->accel_state->texH[1];
+
+	vb[12] = (float)(dstX + w);
+	vb[13] = (float)(dstY + h);
+	vb[14] = xFixedToFloat(srcBottomRight.x) / info->accel_state->texW[0];
+	vb[15] = xFixedToFloat(srcBottomRight.y) / info->accel_state->texH[0];
+	vb[16] = xFixedToFloat(maskBottomRight.x) / info->accel_state->texW[1];
+	vb[17] = xFixedToFloat(maskBottomRight.y) / info->accel_state->texH[1];
+		    
+	vb[18] = (float)(dstX + w);
+	vb[19] = (float)dstY;
+	vb[20] = xFixedToFloat(srcTopRight.x) / info->accel_state->texW[0];
+	vb[21] = xFixedToFloat(srcTopRight.y) / info->accel_state->texH[0];
+	vb[22] = xFixedToFloat(maskTopRight.x) / info->accel_state->texW[1];
+	vb[23] = xFixedToFloat(maskTopRight.y) / info->accel_state->texH[1];
+
+	radeon_vbo_commit(pScrn);
+    } else {
+
+	vb = radeon_vbo_space(pScrn, 16);
+
+	vb[0] = (float)dstX;
+	vb[1] = (float)dstY;
+	vb[2] = xFixedToFloat(srcTopLeft.x) / info->accel_state->texW[0];
+	vb[3] = xFixedToFloat(srcTopLeft.y) / info->accel_state->texH[0];
+
+	vb[4] = (float)dstX;
+	vb[5] = (float)(dstY + h);
+	vb[6] = xFixedToFloat(srcBottomLeft.x) / info->accel_state->texW[0];
+	vb[7] = xFixedToFloat(srcBottomLeft.y) / info->accel_state->texH[0];
+
+	vb[8] = (float)(dstX + w);
+	vb[9] = (float)(dstY + h);
+	vb[10] = xFixedToFloat(srcBottomRight.x) / info->accel_state->texW[0];
+	vb[11] = xFixedToFloat(srcBottomRight.y) / info->accel_state->texH[0];
+
+	vb[12] = (float)(dstX + w);
+	vb[13] = (float)dstY;
+	vb[14] = xFixedToFloat(srcTopRight.x) / info->accel_state->texW[0];
+	vb[15] = xFixedToFloat(srcTopRight.y) / info->accel_state->texH[0];
+
+	radeon_vbo_commit(pScrn);
+    }
+
+
+    LEAVE_DRAW(0);
+}
+#undef VTX_OUT
+#undef VTX_OUT_MASK
+#endif
+
 
 #undef ONLY_ONCE
 #undef FUNC_NAME

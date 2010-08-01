@@ -847,6 +847,11 @@ Bool FUNC_NAME(RADEONDrawInit)(ScreenPtr pScreen)
 		    FUNC_NAME(R300PrepareComposite);
 		info->accel_state->exa->Composite = FUNC_NAME(RadeonComposite);
 		info->accel_state->exa->DoneComposite = FUNC_NAME(RadeonDoneComposite);
+
+#ifdef XF86DRM_MODE
+	        if (info->cs)
+		    radeon_vbo_init_lists(pScrn);
+#endif
 	    } else
 		xf86DrvMsg(pScrn->scrnIndex, X_INFO, "EXA Composite requires CP on R5xx/IGP\n");
 	} else if (IS_R200_3D) {
@@ -895,12 +900,22 @@ Bool FUNC_NAME(RADEONDrawInit)(ScreenPtr pScreen)
 #endif
     info->accel_state->exa->maxY = 8191;
 
+    info->accel_state->verts_per_op = 4;
     if (xf86ReturnOptValBool(info->Options, OPTION_EXA_VSYNC, FALSE)) {
 	xf86DrvMsg(pScrn->scrnIndex, X_INFO, "EXA VSync enabled\n");
 	info->accel_state->vsync = TRUE;
     } else
 	info->accel_state->vsync = FALSE;
 
+#ifdef ACCEL_CP
+    if (info->accel_state->use_vbos) {
+      info->accel_state->exa->DoneComposite = RadeonDoneComposite_VBO;
+      info->accel_state->finish_op = radeon_finish_composite_op;
+      info->accel_state->vb_start_op = -1;
+    }
+#endif
+
+    RADEONVlineHelperClear(pScrn);
     RADEONEngineInit(pScrn);
 
     if (!exaDriverInit(pScreen, info->accel_state->exa)) {
